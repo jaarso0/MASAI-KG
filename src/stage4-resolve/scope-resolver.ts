@@ -53,15 +53,15 @@ export class ScopeResolver {
     }
 
     // Check file-level imports (if imported in the same file)
-    const resolvedImport = resolvedImports.get(nameToLookUp);
-    if (resolvedImport) {
-      if (qualifierChain.length > 1) {
-        const resolvedMember = this.resolveChain(resolvedImport, qualifierChain, 1);
+    // Support prefix matching for dotted Python imports (e.g. import a.b -> qualifier chain a.b.c)
+    for (let len = qualifierChain.length; len >= 1; len--) {
+      const prefix = qualifierChain.slice(0, len).join('.');
+      const resolvedImport = resolvedImports.get(prefix);
+      if (resolvedImport) {
+        const resolvedMember = this.resolveChain(resolvedImport, qualifierChain, len);
         if (resolvedMember) {
           return { symbol: resolvedMember, method: 'scope' };
         }
-      } else {
-        return { symbol: resolvedImport, method: 'scope' };
       }
     }
 
@@ -89,6 +89,49 @@ export class ScopeResolver {
         }
       }
       return { symbol: bestMatch, method: 'global_fallback' };
+    }
+
+    // Builtins fallback
+    const BUILTINS = new Set([
+      'print', 'len', 'str', 'int', 'float', 'dict', 'list', 'set', 'tuple', 'range', 'enumerate',
+      'zip', 'getattr', 'setattr', 'hasattr', 'any', 'all', 'min', 'max', 'sum', 'open', 'type',
+      'id', 'map', 'filter', 'next', 'iter', 'repr', 'Exception', 'ValueError', 'TypeError', 'KeyError',
+      'bool', 'abs', 'round', 'pow', 'divmod', 'sorted', 'reversed', 'slice', 'ord', 'chr',
+      'isinstance', 'issubclass', 'callable', 'locals', 'globals', 'hash', 'classmethod', 'staticmethod',
+      'property', 'super', 'object',
+      'console', 'log', 'error', 'warn', 'info', 'dir', 'Math', 'Date', 'JSON', 'Map', 'Set', 'Promise',
+      'Object', 'Array', 'String', 'Number', 'Boolean', 'RegExp', 'Error', 'setTimeout', 'setInterval',
+      'clearTimeout', 'clearInterval', 'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURIComponent',
+      'decodeURIComponent'
+    ]);
+
+    if (BUILTINS.has(nameToLookUp)) {
+      const extSymbolId = `external::builtin::${nameToLookUp}`;
+      let extSymbol = this.registry.byId.lookup(extSymbolId);
+      if (!extSymbol) {
+        extSymbol = {
+          id: extSymbolId,
+          kind: 'function',
+          name: nameToLookUp,
+          qualifiedName: nameToLookUp,
+          filePath: 'builtin',
+          range: candidate.range,
+          exported: true,
+          visibility: 'public',
+          metadata: { external: true }
+        };
+        this.registry.byId.add(extSymbol);
+        this.registry.byName.add(extSymbol);
+        this.registry.byQualifiedName.add(extSymbol);
+      }
+
+      if (qualifierChain.length > 1) {
+        const resolvedMember = this.resolveChain(extSymbol, qualifierChain, 1);
+        if (resolvedMember) {
+          return { symbol: resolvedMember, method: 'global_fallback' };
+        }
+      }
+      return { symbol: extSymbol, method: 'global_fallback' };
     }
 
     return undefined;
@@ -156,6 +199,35 @@ export class ScopeResolver {
         return child;
       }
     }
+
+    // Dynamic member resolution for external symbols
+    if (parentSymbol.metadata?.external) {
+      const childId = `${parentSymbol.id}::${memberName}`;
+      let child = this.registry.byId.lookup(childId);
+      if (!child) {
+        child = {
+          id: childId,
+          kind: memberName[0] === memberName[0].toUpperCase() && memberName[0] !== memberName[0].toLowerCase() ? 'class' : 'method',
+          name: memberName,
+          qualifiedName: `${parentSymbol.qualifiedName}.${memberName}`,
+          filePath: parentSymbol.filePath,
+          range: parentSymbol.range,
+          exported: true,
+          visibility: 'public',
+          metadata: { external: true }
+        };
+        this.registry.byId.add(child);
+        this.registry.byName.add(child);
+        this.registry.byQualifiedName.add(child);
+        this.containments.push({
+          parentId: parentSymbol.id,
+          childId: child.id,
+          kind: 'has_member'
+        });
+      }
+      return child;
+    }
+
     return undefined;
   }
 }

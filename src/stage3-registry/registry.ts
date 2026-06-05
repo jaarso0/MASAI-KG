@@ -18,7 +18,25 @@ export function getModulePaths(filePath: string): string[] {
   const extIndex = norm.lastIndexOf('.');
   const base = extIndex !== -1 ? norm.slice(0, extIndex) : norm;
   const dotPath = base.replace(/\//g, '.');
-  return [base, dotPath];
+  const paths = new Set<string>([base, dotPath]);
+
+  if (norm.endsWith('/__init__.py')) {
+    const pkg = norm.slice(0, -12); // remove "/__init__.py"
+    paths.add(pkg);
+    paths.add(pkg.replace(/\//g, '.'));
+  } else {
+    const indexSuffixes = ['/index.ts', '/index.tsx', '/index.js', '/index.jsx'];
+    for (const suffix of indexSuffixes) {
+      if (norm.endsWith(suffix)) {
+        const pkg = norm.slice(0, -suffix.length);
+        paths.add(pkg);
+        paths.add(pkg.replace(/\//g, '.'));
+        break;
+      }
+    }
+  }
+
+  return Array.from(paths);
 }
 
 // ════════════════════════════════════════════

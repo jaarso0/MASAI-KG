@@ -29,7 +29,7 @@ export const PYTHON_QUERIES = `
   ]) @import
 
 (import_from_statement
-  [
+  name: [
     (dotted_name) @name
     (aliased_import
       alias: (identifier) @name)

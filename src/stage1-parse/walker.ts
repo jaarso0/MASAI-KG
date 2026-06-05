@@ -10,6 +10,10 @@ const DEFAULT_EXCLUDE = new Set([
   'build',
   '__pycache__',
   '.git',
+  'venv',
+  '.venv',
+  'env',
+  '.env',
 ]);
 
 /**
@@ -105,7 +109,7 @@ export async function parseProject(projectRoot: string): Promise<ParsedFile[]> {
       const isDirectory = entry.isDirectory();
 
       // Skip default excluded folders
-      if (DEFAULT_EXCLUDE.has(entry.name)) continue;
+      if (DEFAULT_EXCLUDE.has(entry.name.toLowerCase())) continue;
 
       // Skip dotfiles/hidden folders (except current dir references)
       if (entry.name.startsWith('.') && entry.name !== '.' && entry.name !== '..') continue;

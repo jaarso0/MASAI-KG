@@ -21,24 +21,94 @@ export class ImportResolver {
     const isPython = filePath.endsWith('.py');
     const isJava = filePath.endsWith('.java');
 
+    let resolvedSym: Symbol | undefined;
     if (isPython) {
-      return this.resolvePythonImport(importPath, rawName);
+      resolvedSym = this.resolvePythonImport(filePath, importPath, rawName, candidate);
     } else if (isJava) {
-      return this.resolveJavaImport(filePath, importPath, rawName);
+      resolvedSym = this.resolveJavaImport(filePath, importPath, rawName, candidate);
     } else {
-      return this.resolveTypeScriptImport(filePath, importPath, rawName);
+      resolvedSym = this.resolveTypeScriptImport(filePath, importPath, rawName, candidate);
     }
+
+    if (resolvedSym) {
+      return resolvedSym;
+    }
+
+    // Intercept unresolved external imports (standard libraries & third-party packages)
+    if (!this.isInternalPath(importPath)) {
+      const lookupName = (candidate.metadata?.importedName as string) || rawName;
+      const extSymbolId = `external::${importPath.replace(/\\/g, '/')}::${lookupName}`;
+      
+      let extSymbol = this.registry.byId.lookup(extSymbolId);
+      if (!extSymbol) {
+        extSymbol = {
+          id: extSymbolId,
+          kind: lookupName[0] === lookupName[0].toUpperCase() && lookupName[0] !== lookupName[0].toLowerCase() ? 'class' : 'variable',
+          name: lookupName,
+          qualifiedName: `${importPath.replace(/\//g, '.')}.${lookupName}`,
+          filePath: 'external',
+          range: candidate.range,
+          exported: true,
+          visibility: 'public',
+          metadata: { external: true }
+        };
+        this.registry.byId.add(extSymbol);
+        this.registry.byName.add(extSymbol);
+        this.registry.byQualifiedName.add(extSymbol);
+      }
+      return extSymbol;
+    }
+
+    return undefined;
   }
 
-  private resolvePythonImport(importPath: string, rawName: string): Symbol | undefined {
-    // For Python: from services.user import UserService
-    // importPath is "services/user"
-    // We try to find the module file service/user.py or services/user/__init__.py
+  private isInternalPath(importPath: string): boolean {
+    const normPath = importPath.replace(/\\/g, '/');
+    const firstSegment = normPath.split('/')[0];
+    if (!firstSegment) return false;
+
+    // Check if any file symbol in the registry starts with the first segment
+    const allSymbols = this.registry.byId.values();
+    const fileSymbols = allSymbols.filter(s => s.kind === 'file');
+    return fileSymbols.some(s => {
+      const normalizedFile = s.filePath.replace(/\\/g, '/');
+      const fileSegment = normalizedFile.split('/')[0];
+      return fileSegment === firstSegment;
+    });
+  }
+
+  private resolvePythonImport(
+    filePath: string,
+    importPath: string,
+    rawName: string,
+    candidate: ReferenceCandidate
+  ): Symbol | undefined {
+    // Handle relative imports (e.g. from .local import config -> importPath is "/local" or similar)
+    let dotsCount = 0;
+    while (dotsCount < importPath.length && importPath[dotsCount] === '/') {
+      dotsCount++;
+    }
+
+    let resolvedImportPath = importPath;
+    if (dotsCount > 0) {
+      const dir = path.dirname(filePath);
+      let targetDir = dir;
+      for (let i = 0; i < dotsCount - 1; i++) {
+        targetDir = path.dirname(targetDir);
+      }
+      const rest = importPath.substring(dotsCount);
+      resolvedImportPath = path.join(targetDir, rest).replace(/\\/g, '/');
+      // normalize leading './' if any
+      if (resolvedImportPath.startsWith('./')) {
+        resolvedImportPath = resolvedImportPath.substring(2);
+      }
+    }
+
     const candidates = [
-      importPath,
-      importPath + '.py',
-      importPath + '/__init__.py',
-      importPath.replace(/\//g, '.') // dotted notation services.user
+      resolvedImportPath,
+      resolvedImportPath + '.py',
+      resolvedImportPath + '/__init__.py',
+      resolvedImportPath.replace(/\//g, '.') // dotted notation
     ];
 
     let targetFileSymbol: Symbol | undefined;
@@ -54,28 +124,35 @@ export class ImportResolver {
       // Best effort check by searching for file symbol that matches module name in path
       const allSymbols = this.registry.byId.values();
       targetFileSymbol = allSymbols.find(
-        s => s.kind === 'file' && s.filePath.replace(/\.py$/, '').endsWith(importPath)
+        s => s.kind === 'file' && s.filePath.replace(/\.py$/, '').endsWith(resolvedImportPath)
       );
     }
 
+    const lookupName = (candidate.metadata?.importedName as string) || rawName;
+
     if (targetFileSymbol) {
+      // If we are importing the module itself directly
+      if (candidate.astNodeType === 'import_statement') {
+        return targetFileSymbol;
+      }
+
       // Find the imported symbol in that file
       const fileSymbols = this.registry.byFile.lookup(targetFileSymbol.filePath);
       
       // Match by name or qualifiedName
       const match = fileSymbols.find(
-        s => s.kind !== 'file' && s.exported && (s.name === rawName || s.qualifiedName === rawName)
+        s => s.kind !== 'file' && s.exported && (s.name === lookupName || s.qualifiedName === lookupName)
       );
       if (match) return match;
 
-      // If we are importing the module itself, return the file symbol
-      if (targetFileSymbol.name === rawName || targetFileSymbol.filePath.endsWith(rawName + '.py')) {
+      // If we are importing the module itself as a fallback
+      if (targetFileSymbol.name === lookupName || targetFileSymbol.filePath.endsWith(lookupName + '.py')) {
         return targetFileSymbol;
       }
     }
 
     // Try a global lookup of the name among exported symbols if path-based resolution fails
-    const globalMatches = this.registry.byName.lookup(rawName);
+    const globalMatches = this.registry.byName.lookup(lookupName);
     const exportedMatch = globalMatches.find(s => s.kind !== 'file' && s.exported);
     if (exportedMatch) return exportedMatch;
 
@@ -85,7 +162,8 @@ export class ImportResolver {
   private resolveTypeScriptImport(
     filePath: string,
     importPath: string,
-    rawName: string
+    rawName: string,
+    candidate: ReferenceCandidate
   ): Symbol | undefined {
     // For TS/JS: import { UserService } from './services/user.js'
     // Calculate path relative to current file's directory
@@ -122,18 +200,20 @@ export class ImportResolver {
       );
     }
 
+    const lookupName = (candidate.metadata?.importedName as string) || rawName;
+
     if (targetFileSymbol) {
       // Find the imported symbol in that file
       const fileSymbols = this.registry.byFile.lookup(targetFileSymbol.filePath);
       
       const match = fileSymbols.find(
-        s => s.kind !== 'file' && s.exported && (s.name === rawName || s.qualifiedName === rawName)
+        s => s.kind !== 'file' && s.exported && (s.name === lookupName || s.qualifiedName === lookupName)
       );
       if (match) return match;
     }
 
     // Fallback: look up globally by name
-    const globalMatches = this.registry.byName.lookup(rawName);
+    const globalMatches = this.registry.byName.lookup(lookupName);
     const exportedMatch = globalMatches.find(s => s.kind !== 'file' && s.exported);
     if (exportedMatch) return exportedMatch;
 
@@ -143,7 +223,8 @@ export class ImportResolver {
   private resolveJavaImport(
     filePath: string,
     importPath: string,
-    rawName: string
+    rawName: string,
+    candidate: ReferenceCandidate
   ): Symbol | undefined {
     const cleanImportPath = importPath.replace(/^[\.\/]+/, '');
     const isWildcard = cleanImportPath.endsWith('*');
@@ -158,16 +239,18 @@ export class ImportResolver {
       );
     }
 
+    const lookupName = (candidate.metadata?.importedName as string) || rawName;
+
     if (targetFileSymbol) {
       const fileSymbols = this.registry.byFile.lookup(targetFileSymbol.filePath);
       const match = fileSymbols.find(
-        s => s.kind !== 'file' && s.exported && (s.name === rawName || s.qualifiedName === rawName)
+        s => s.kind !== 'file' && s.exported && (s.name === lookupName || s.qualifiedName === lookupName)
       );
       if (match) return match;
     }
 
     // Fallback: look up globally by name
-    const globalMatches = this.registry.byName.lookup(rawName);
+    const globalMatches = this.registry.byName.lookup(lookupName);
     const exportedMatch = globalMatches.find(s => s.kind !== 'file' && s.exported);
     if (exportedMatch) return exportedMatch;
 

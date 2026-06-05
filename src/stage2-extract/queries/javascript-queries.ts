@@ -1,6 +1,6 @@
-export const TYPESCRIPT_QUERIES = `
+export const JAVASCRIPT_QUERIES = `
 (class_declaration
-  name: (type_identifier) @name) @definition.class
+  name: (identifier) @name) @definition.class
 
 (method_definition
   name: [
@@ -10,12 +10,6 @@ export const TYPESCRIPT_QUERIES = `
 
 (function_declaration
   name: (identifier) @name) @definition.function
-
-(interface_declaration
-  name: (type_identifier) @name) @definition.interface
-
-(type_alias_declaration
-  name: (type_identifier) @name) @definition.type_alias
 
 (variable_declarator
   name: (identifier) @name) @definition.variable
@@ -45,24 +39,11 @@ export const TYPESCRIPT_QUERIES = `
 (import_clause
   (identifier) @name) @import
 
-(extends_clause
+(class_heritage
   [
     (identifier)
     (member_expression)
   ] @name) @inherit
-
-(implements_clause
-  [
-    (type_identifier)
-    (nested_type_identifier)
-  ] @name) @implement
-
-(type_annotation
-  [
-    (type_identifier)
-    (nested_type_identifier)
-    (generic_type)
-  ] @name) @type_use
 
 (ERROR) @error
 `;

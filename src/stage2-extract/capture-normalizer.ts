@@ -63,7 +63,7 @@ function getQualifierChain(node: any): string[] {
     }
   }
   if (type === 'attribute') {
-    const val = node.childForFieldName('value');
+    const val = node.childForFieldName('object') || node.childForFieldName('value');
     const attr = node.childForFieldName('attribute');
     if (val && attr) {
       return [...getQualifierChain(val), ...getQualifierChain(attr)];
@@ -133,29 +133,45 @@ function getTSImportPath(node: any): string | undefined {
 }
 
 function getPythonImportPath(node: any, nameNode: any): string | undefined {
-  let cur = nameNode;
-  while (cur && cur.type !== 'import_statement' && cur.type !== 'import_from_statement') {
-    if (cur.type === 'aliased_import') {
-      const realNameNode = cur.childForFieldName('name');
-      if (realNameNode) {
-        return getQualifierChain(realNameNode).join('/');
-      }
-    }
-    cur = cur.parent;
-  }
-
   let parent = nameNode;
   while (parent && parent.type !== 'import_from_statement' && parent.type !== 'import_statement') {
     parent = parent.parent;
   }
-  if (parent && parent.type === 'import_from_statement') {
-    const moduleNode = parent.childForFieldName('module_name');
-    if (moduleNode) {
-      return moduleNode.text.replace(/\./g, '/');
+
+  if (parent) {
+    if (parent.type === 'import_from_statement') {
+      const moduleNode = parent.childForFieldName('module_name');
+      if (moduleNode) {
+        return moduleNode.text.replace(/\./g, '/');
+      }
+    } else if (parent.type === 'import_statement') {
+      // For import_statement, if the nameNode is inside an aliased_import, we want the real name
+      let cur = nameNode;
+      while (cur && cur !== parent) {
+        if (cur.type === 'aliased_import') {
+          const realNameNode = cur.childForFieldName('name');
+          if (realNameNode) {
+            return getQualifierChain(realNameNode).join('/');
+          }
+        }
+        cur = cur.parent;
+      }
     }
   }
 
   return getQualifierChain(nameNode).join('/');
+}
+
+function getImportedName(nameNode: any): string {
+  if (nameNode.parent) {
+    if (nameNode.parent.type === 'aliased_import' || nameNode.parent.type === 'import_specifier') {
+      const realNameNode = nameNode.parent.childForFieldName('name');
+      if (realNameNode) {
+        return realNameNode.text;
+      }
+    }
+  }
+  return nameNode.text;
 }
 
 // ════════════════════════════════════════════
@@ -366,6 +382,7 @@ export function normalizeCaptures(
       const refKind = refKindMap[tag];
       let importPath: string | undefined;
 
+      let metadata: Record<string, unknown> = {};
       if (refKind === 'import') {
         if (filePath.endsWith('.py')) {
           importPath = getPythonImportPath(node, nameNode);
@@ -374,6 +391,7 @@ export function normalizeCaptures(
         } else {
           importPath = getTSImportPath(node);
         }
+        metadata.importedName = getImportedName(nameNode);
       }
 
       let qualifierChain = getQualifierChain(nameNode);
@@ -393,7 +411,8 @@ export function normalizeCaptures(
           importPath,
           astNodeType: node.type,
           filePath,
-          range: getRange(nameNode)
+          range: getRange(nameNode),
+          metadata
         })
       );
     } else if (tag === 'error') {
