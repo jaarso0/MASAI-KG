@@ -20,38 +20,78 @@ Install the dependencies:
 npm install
 ```
 
-## CLI Usage
+## CLI & Execution Commands
 
-You can run the builder on any target directory. The CLI runs the pipeline, outputs a summary report, and serializes the complete semantic model to a JSON file.
+### 1. Running the Parser Pipeline
 
-### Running in Development
+The CLI parses a target codebase, builds a semantic model, prints a diagnostic report, and persists the serialized JSON model.
+
+#### Running in Development (JIT Compilation)
 
 ```bash
 npm run dev -- <path-to-target-project>
 ```
 
-If no path is specified, it defaults to the current working directory.
+*If no path is specified, the pipeline defaults to the current working directory.*
 
-### Building and Running the Compiled Bundle
+#### Production Build & Run
 
-To build the production ESM bundle and type declarations:
+To compile the production ESM bundle and type declarations:
 
 ```bash
 npm run build
 ```
 
-Then run the compiled script:
+Then run the compiled script using:
 
 ```bash
 node dist/index.js <path-to-target-project>
 ```
 
-### Serialized Artifact
+#### Serialized Artifact
 
 The pipeline persists the finalized semantic model to:
 ```
 <path-to-target-project>/.masai/semantic-model.json
 ```
+
+---
+
+### 2. Running the Interactive Visualizer
+
+The visualizer provides a web-based, interactive 2D node-link graph visualization of the extracted knowledge graph, including a details inspector and neighborhood search.
+
+#### Prerequisite: Build the Frontend Assets
+Before running the server, build the production visualizer assets:
+
+```bash
+cd visualizer
+npm install
+npm run build
+cd ..
+```
+
+#### Start the Server
+Start the local HTTP server to load the serialized model and host the visualizer:
+
+```bash
+npm run serve -- <path-to-target-project>
+```
+*Note: This command will attempt to automatically open your default browser at `http://localhost:3000` (or the next available port).*
+
+#### Running in Frontend Development Mode (with Hot Reloading)
+If you are developing the visualizer UI and want Hot Module Replacement (HMR):
+
+1. **Start the backend server** in the root directory to serve the API on port 3000:
+   ```bash
+   npm run serve -- <path-to-target-project>
+   ```
+2. **Start the Vite development server** in a separate terminal:
+   ```bash
+   cd visualizer
+   npm run dev
+   ```
+   *This serves the frontend UI at `http://localhost:5173` and proxies API requests to the backend server.*
 
 ---
 
