@@ -2,6 +2,7 @@ import Parser from 'tree-sitter';
 import JavaScript from 'tree-sitter-javascript';
 import Python from 'tree-sitter-python';
 import Java from 'tree-sitter-java';
+import HTML from 'tree-sitter-html';
 import pkg from 'tree-sitter-typescript';
 import { Language } from './lang-detect.js';
 
@@ -38,6 +39,8 @@ export class ParserRegistry {
         return TSX;
       case 'java':
         return Java;
+      case 'html':
+        return HTML;
       default:
         throw new Error(`Unsupported language: ${lang}`);
     }

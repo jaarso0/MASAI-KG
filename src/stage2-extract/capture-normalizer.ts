@@ -20,6 +20,7 @@ import {
   createReferenceCandidate,
   createDiagnostic
 } from '../semantic-model/builder.js';
+import { runAdapters } from '../frameworks/adapter-registry.js';
 
 // ════════════════════════════════════════════
 // RANGE CONTAINMENT HELPERS
@@ -209,6 +210,13 @@ function getSymbolMetadata(
     return { visibility: 'public', exported: true };
   }
 
+  if (filePath.endsWith('.html')) {
+    return {
+      exported: true,
+      visibility: 'public'
+    };
+  }
+
   const isPrivate = name.startsWith('#');
   let isExported = false;
   let cur: any = node;
@@ -328,7 +336,7 @@ export function normalizeCaptures(
       if (kind === 'variable') {
         const parentKind = tracker.currentParentSymbol?.kind;
         const isTopOrClassLevel =
-          parentKind === 'file' || parentKind === 'class' || parentKind === 'interface';
+          parentKind === undefined || parentKind === 'file' || parentKind === 'class' || parentKind === 'interface';
         if (!isTopOrClassLevel) {
           continue;
         }
@@ -337,13 +345,20 @@ export function normalizeCaptures(
       const { exported, visibility } = getSymbolMetadata(node, name, filePath);
       const chain = tracker.buildIdChain(name);
 
+      const adapterMeta = runAdapters(node, rootNode, filePath);
+      const symbolMetadata: Record<string, unknown> = {};
+      if (adapterMeta.apiRoute) symbolMetadata.apiRoute = adapterMeta.apiRoute;
+      if (adapterMeta.dataModel) symbolMetadata.dataModel = adapterMeta.dataModel;
+      if (adapterMeta.isService) symbolMetadata.isService = adapterMeta.isService;
+
       const sym = createSymbol({
         filePath,
         chain,
         kind,
         range: getRange(node),
         exported,
-        visibility
+        visibility,
+        metadata: symbolMetadata
       });
       symbols.push(sym);
 
@@ -388,6 +403,8 @@ export function normalizeCaptures(
           importPath = getPythonImportPath(node, nameNode);
         } else if (filePath.endsWith('.java')) {
           importPath = nameNode.text.replace(/\./g, '/');
+        } else if (filePath.endsWith('.html')) {
+          importPath = nameNode.text.replace(/^['"]|['"]$/g, '');
         } else {
           importPath = getTSImportPath(node);
         }

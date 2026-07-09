@@ -12,6 +12,8 @@ export { JsonSemanticModelStorage } from './storage/semantic-model-storage.js';
 export * from './semantic-model/types.js';
 export { KnowledgeGraph } from './stage5-graph/graph.js';
 export { startServer } from './serve.js';
+export { RetrievalEngine } from './retrieval/api.js';
+export * from './retrieval/types.js';
 
 // CLI Execution Support
 async function runCLI() {
@@ -24,6 +26,31 @@ async function runCLI() {
       await startServer(targetDir);
     } catch (err: any) {
       console.error(`\n❌ Error starting server:`, err.message || err);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (command === 'mcp') {
+    const targetDir = args[1] ? path.resolve(args[1]) : process.cwd();
+    try {
+      const storage = new JsonSemanticModelStorage();
+      const pipeline = new Pipeline();
+      let model;
+      try {
+        model = await storage.load(targetDir);
+        console.error(`Loaded existing semantic model from .masai/semantic-model.json`);
+      } catch {
+        console.error(`No existing semantic model found. Performing full build...`);
+        model = await pipeline.buildFull(targetDir);
+        await storage.save(model, targetDir);
+      }
+      const graph = pipeline.deriveGraph(model);
+      const { MCPServer } = await import('./mcp/server.js');
+      const mcpServer = new MCPServer(graph, targetDir);
+      mcpServer.start();
+    } catch (err: any) {
+      console.error(`\n❌ Error starting MCP server:`, err.message || err);
       process.exit(1);
     }
     return;

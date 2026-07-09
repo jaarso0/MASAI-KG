@@ -20,6 +20,7 @@ export class ExtractorRegistry {
     this.extractors.set('jsx', queryExtractor);
     this.extractors.set('python', queryExtractor);
     this.extractors.set('java', queryExtractor);
+    this.extractors.set('html', queryExtractor);
   }
 
   public getExtractor(lang: Language): QueryExtractor {

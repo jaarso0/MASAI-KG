@@ -155,4 +155,84 @@ describe('Stage 2 - Extract', () => {
     expect(callRef).toBeDefined();
     expect(callRef?.rawName).toBe('repo.save');
   });
+
+  test('Extracts FastAPI, SQLAlchemy, and Service metadata via framework adapters', () => {
+    const pythonCode = `
+from fastapi import FastAPI
+from sqlalchemy.ext.declarative import declarative_base
+
+app = FastAPI()
+Base = declarative_base()
+
+class User(Base):
+    __tablename__ = "users"
+
+@app.post("/users")
+def create_user():
+    pass
+
+class UserService:
+    pass
+    `;
+    const parser = parserRegistry.getParser('python');
+    const tree = parser.parse(pythonCode);
+    const parsedFile = {
+      filePath: 'app/main.py',
+      absolutePath: '/absolute/app/main.py',
+      language: 'python' as const,
+      tree,
+      sourceCode: pythonCode
+    };
+
+    const extractor = extractorRegistry.getExtractor('python');
+    const partialModel = extractor.extract(parsedFile);
+
+    // Verify symbols
+    const userClass = partialModel.symbols.find(s => s.kind === 'class' && s.name === 'User');
+    expect(userClass).toBeDefined();
+    expect(userClass?.metadata?.dataModel).toEqual({ tableName: 'users' });
+
+    const createUserFunc = partialModel.symbols.find(s => s.kind === 'function' && s.name === 'create_user');
+    expect(createUserFunc).toBeDefined();
+    expect(createUserFunc?.metadata?.apiRoute).toEqual({ path: '/users', method: 'POST' });
+
+    const userServiceClass = partialModel.symbols.find(s => s.kind === 'class' && s.name === 'UserService');
+    expect(userServiceClass).toBeDefined();
+    expect(userServiceClass?.metadata?.isService).toBe(true);
+  });
+
+  test('Extracts HTML symbols, scopes, containments, and candidates', async () => {
+    const htmlProjPath = path.resolve('tests/fixtures/html-project');
+    const parsedFiles = await parseProject(htmlProjPath);
+
+    const htmlFile = parsedFiles.find(f => f.filePath === 'index.html');
+    expect(htmlFile).toBeDefined();
+
+    const extractor = extractorRegistry.getExtractor('html');
+    const partialModel = extractor.extract(htmlFile!);
+
+    expect(partialModel.filePath).toBe('index.html');
+
+    // Symbols extracted: file itself, and two elements with IDs (app-root and header-title)
+    expect(partialModel.symbols.length).toBe(3);
+
+    const appRootSym = partialModel.symbols.find(s => s.kind === 'variable' && s.name === 'app-root');
+    expect(appRootSym).toBeDefined();
+    expect(appRootSym?.id).toBe('index.html::app-root');
+
+    const headerSym = partialModel.symbols.find(s => s.kind === 'variable' && s.name === 'header-title');
+    expect(headerSym).toBeDefined();
+    expect(headerSym?.id).toBe('index.html::header-title');
+
+    // References: 1 link element stylesheet, 1 script element
+    expect(partialModel.references.length).toBe(2);
+    const linkRef = partialModel.references.find(r => r.importPath === 'style.css');
+    expect(linkRef).toBeDefined();
+    expect(linkRef?.kind).toBe('import');
+
+    const scriptRef = partialModel.references.find(r => r.importPath === 'app.js');
+    expect(scriptRef).toBeDefined();
+    expect(scriptRef?.kind).toBe('import');
+  });
 });
+

@@ -12,6 +12,8 @@ import {
   FolderGit,
   Package,
   Box,
+  Globe,
+  Database,
 } from 'lucide-react';
 import { Symbol } from '../types';
 
@@ -64,6 +66,14 @@ export function getSymbolTheme(kind: string) {
     case 'type_alias':
       color = 'var(--color-type)';
       Icon = Type;
+      break;
+    case 'api_route':
+      color = '#10b981';
+      Icon = Globe;
+      break;
+    case 'data_model':
+      color = '#f59e0b';
+      Icon = Database;
       break;
   }
 

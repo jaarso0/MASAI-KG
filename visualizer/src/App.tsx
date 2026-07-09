@@ -27,7 +27,14 @@ import {
 } from 'lucide-react';
 
 import { SemanticModel, Symbol, ResolvedReference } from './types';
-import { buildGraph } from './utils/graph-builder';
+import {
+  buildGraph,
+  buildModuleGraph,
+  buildServiceGraph,
+  buildApiGraph,
+  buildDataGraph,
+  traceFlow
+} from './utils/graph-builder';
 import { CustomNode, FileGroupNode, ClassGroupNode, getSymbolTheme } from './components/CustomNode';
 
 const nodeTypes = {
@@ -115,6 +122,14 @@ function VisualizerDashboard() {
   // Interactive selection state
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [neighborhoodNodeId, setNeighborhoodNodeId] = useState<string | null>(null);
+
+  // View mode selection
+  type ViewMode = 'flat' | 'module' | 'service' | 'api' | 'data';
+  const [viewMode, setViewMode] = useState<ViewMode>('flat');
+
+  // Active Execution Flow Trace
+  const [activeTraceStartId, setActiveTraceStartId] = useState<string | null>(null);
+  const [traceDepth, setTraceDepth] = useState<number>(4);
 
   // Load model JSON
   useEffect(() => {
@@ -213,24 +228,44 @@ function VisualizerDashboard() {
     return { kinds: kindCounts, edges: edgeCounts };
   }, [model]);
 
-  // Translate semantic-model to initial RF nodes/edges
-  const rawGraph = useMemo(() => {
+  // Translate semantic-model to RF nodes/edges depending on view mode and active flow trace
+  const currentGraph = useMemo(() => {
     if (!model) return { nodes: [], edges: [] };
-    return buildGraph(model);
-  }, [model]);
+
+    if (activeTraceStartId) {
+      return traceFlow(model, activeTraceStartId, traceDepth);
+    }
+
+    switch (viewMode) {
+      case 'module':
+        return buildModuleGraph(model);
+      case 'service':
+        return buildServiceGraph(model);
+      case 'api':
+        return buildApiGraph(model);
+      case 'data':
+        return buildDataGraph(model);
+      case 'flat':
+      default:
+        return buildGraph(model);
+    }
+  }, [model, viewMode, activeTraceStartId, traceDepth]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>([]);
 
-  // Sync graph state on load
+  // Sync graph state on currentGraph change
   useEffect(() => {
-    if (rawGraph.nodes.length > 0) {
-      setNodes(rawGraph.nodes);
-      setEdges(rawGraph.edges);
+    if (currentGraph.nodes.length > 0) {
+      setNodes(currentGraph.nodes);
+      setEdges(currentGraph.edges);
       // Wait minor tick for renders
       setTimeout(() => fitView({ padding: 0.1, duration: 800 }), 50);
+    } else {
+      setNodes([]);
+      setEdges([]);
     }
-  }, [rawGraph, fitView, setNodes, setEdges]);
+  }, [currentGraph, fitView, setNodes, setEdges]);
 
   // Compute connections in Neighborhood Mode
   const connectedNodeIds = useMemo(() => {
@@ -275,13 +310,18 @@ function VisualizerDashboard() {
       const cache = visibility.get(nodeId);
       if (cache !== undefined) return cache;
 
+      if (activeTraceStartId) {
+        visibility.set(nodeId, true);
+        return true;
+      }
+
       const node = nodeMap.get(nodeId);
       if (!node) {
         visibility.set(nodeId, false);
         return false;
       }
 
-      const symbol = symbolMap.get(nodeId);
+      const symbol = (node.data as any).symbol as Symbol;
       if (!symbol) {
         visibility.set(nodeId, false);
         return false;
@@ -439,8 +479,12 @@ function VisualizerDashboard() {
   // Node Inspector selection
   const selectedSymbol = useMemo(() => {
     if (!selectedNodeId) return null;
+    const activeNode = nodes.find(n => n.id === selectedNodeId);
+    if (activeNode && (activeNode.data as any)?.symbol) {
+      return (activeNode.data as any).symbol as Symbol;
+    }
     return symbolMap.get(selectedNodeId) || null;
-  }, [selectedNodeId, symbolMap]);
+  }, [selectedNodeId, nodes, symbolMap]);
 
   const selectedRelations = useMemo(() => {
     if (!selectedNodeId) return null;
@@ -492,6 +536,23 @@ function VisualizerDashboard() {
             <Activity size={18} color="#3b82f6" />
             <span>MASAI Knowledge Graph</span>
           </h1>
+
+          {/* View Selector Segments */}
+          <div className="view-selector-tabs">
+            {(['flat', 'module', 'service', 'api', 'data'] as const).map((mode) => (
+              <button
+                key={mode}
+                className={`view-tab-btn ${viewMode === mode ? 'active' : ''}`}
+                onClick={() => {
+                  setViewMode(mode);
+                  setActiveTraceStartId(null); // Clear active trace on view change
+                  setSelectedNodeId(null);
+                }}
+              >
+                {mode === 'flat' ? 'Flat' : mode === 'module' ? 'Modules' : mode === 'service' ? 'Services' : mode === 'api' ? 'APIs' : 'Data'}
+              </button>
+            ))}
+          </div>
           
           <div className="search-container">
             <Search className="search-icon" size={16} />
@@ -647,11 +708,76 @@ function VisualizerDashboard() {
 
       {/* CENTER: React Flow Canvas */}
       <main className="canvas-container">
-        {neighborhoodNodeId && (
+        {activeTraceStartId && (
           <div
             style={{
               position: 'absolute',
               top: 20,
+              left: 20,
+              zIndex: 5,
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid #10b981',
+              borderRadius: '24px',
+              padding: '8px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              fontSize: 12.5,
+              color: '#a7f3d0',
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 4px 15px rgba(0,0,0,0.35)',
+            }}
+          >
+            <Activity size={14} color="#10b981" />
+            <span>
+              Flow Trace Active (Depth: <strong>{traceDepth}</strong>)
+            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => setTraceDepth(d => d + 2)}
+                className="action-btn"
+                style={{ width: 'auto', padding: '2px 8px', fontSize: 11, background: 'rgba(255,255,255,0.1)' }}
+              >
+                +2 Depth
+              </button>
+              <button
+                onClick={() => setTraceDepth(d => Math.max(2, d - 2))}
+                className="action-btn"
+                style={{ width: 'auto', padding: '2px 8px', fontSize: 11, background: 'rgba(255,255,255,0.1)' }}
+              >
+                -2 Depth
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTraceStartId(null);
+                  setTraceDepth(4);
+                }}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  borderRadius: '50%',
+                  width: 20,
+                  height: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  cursor: 'pointer',
+                  marginLeft: 4,
+                }}
+                title="Reset Flow Trace"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {neighborhoodNodeId && (
+          <div
+            style={{
+              position: 'absolute',
+              top: activeTraceStartId ? 75 : 20,
               left: 20,
               zIndex: 5,
               background: 'rgba(59, 130, 246, 0.15)',
@@ -788,23 +914,46 @@ function VisualizerDashboard() {
               </div>
 
               {/* Actions panel */}
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="action-btn" onClick={() => selectAndFocusNode(selectedSymbol.id)}>
-                  <Focus size={16} />
-                  Focus in Graph
-                </button>
-                <button
-                  className={`action-btn secondary ${neighborhoodNodeId === selectedSymbol.id ? 'active' : ''}`}
-                  onClick={() =>
-                    setNeighborhoodNodeId(neighborhoodNodeId === selectedSymbol.id ? null : selectedSymbol.id)
-                  }
-                  style={{
-                    borderColor: neighborhoodNodeId === selectedSymbol.id ? '#3b82f6' : 'var(--border-color)',
-                  }}
-                >
-                  <BookOpen size={16} />
-                  Neighborhood
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="action-btn" onClick={() => selectAndFocusNode(selectedSymbol.id)}>
+                    <Focus size={16} />
+                    Focus in Graph
+                  </button>
+                  <button
+                    className={`action-btn secondary ${neighborhoodNodeId === selectedSymbol.id ? 'active' : ''}`}
+                    onClick={() =>
+                      setNeighborhoodNodeId(neighborhoodNodeId === selectedSymbol.id ? null : selectedSymbol.id)
+                    }
+                    style={{
+                      borderColor: neighborhoodNodeId === selectedSymbol.id ? '#3b82f6' : 'var(--border-color)',
+                    }}
+                  >
+                    <BookOpen size={16} />
+                    Neighborhood
+                  </button>
+                </div>
+                
+                {selectedSymbol && (
+                  <button
+                    className="action-btn"
+                    onClick={() => {
+                      if (activeTraceStartId === selectedSymbol.id) {
+                        setActiveTraceStartId(null);
+                      } else {
+                        setActiveTraceStartId(selectedSymbol.id);
+                        setTraceDepth(4);
+                      }
+                    }}
+                    style={{
+                      backgroundColor: activeTraceStartId === selectedSymbol.id ? '#ef4444' : '#10b981',
+                      color: 'white',
+                    }}
+                  >
+                    <Activity size={16} />
+                    {activeTraceStartId === selectedSymbol.id ? 'Stop Flow Trace' : 'Trace Execution Flow'}
+                  </button>
+                )}
               </div>
 
               {/* References Panel: Callers & Importers */}

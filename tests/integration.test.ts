@@ -75,4 +75,29 @@ describe('End-to-End Integration Pipeline', () => {
     expect(members.some(m => m.name === 'save')).toBe(true);
     expect(members.some(m => m.name === 'getById')).toBe(true);
   });
+
+  test('Runs pipeline on HTML fixture and resolves script imports', async () => {
+    const projectPath = path.resolve('tests/fixtures/html-project');
+    const pipeline = new Pipeline();
+
+    // 1. Run pipeline
+    const model = await pipeline.buildFull(projectPath);
+
+    expect(model.fileCount).toBe(2);
+
+    // Verify HTML and JS symbols exist
+    expect(model.symbols.some(s => s.id === 'index.html::index.html')).toBe(true);
+    expect(model.symbols.some(s => s.id === 'app.js::app.js')).toBe(true);
+    expect(model.symbols.some(s => s.id === 'index.html::app-root')).toBe(true);
+
+    // Verify references are resolved: HTML script src="app.js" should resolve to file "app.js"
+    const resolvedImports = model.resolvedReferences.filter(r => r.kind === 'import');
+    expect(resolvedImports.length).toBeGreaterThanOrEqual(1);
+
+    const scriptImport = resolvedImports.find(
+      r => r.toSymbolId === 'app.js::app.js'
+    );
+    expect(scriptImport).toBeDefined();
+    expect(scriptImport?.resolutionMethod).toBe('import');
+  });
 });

@@ -652,3 +652,65 @@ body {
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* ════════════════════════════════════════════
+   VIEW SELECTOR STYLING
+   ════════════════════════════════════════════ */
+.view-selector-tabs {
+  display: flex;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 2px;
+  margin-top: 4px;
+  gap: 2px;
+}
+
+.view-tab-btn {
+  flex: 1;
+  padding: 6px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.view-tab-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.view-tab-btn.active {
+  color: var(--text-primary);
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+/* ════════════════════════════════════════════
+   ACTIVE TRACE FLOW EDGE STYLING
+   ════════════════════════════════════════════ */
+@keyframes flow-trace {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animated-trace-edge path.react-flow__edge-path {
+  stroke-dasharray: 8 5;
+  animation: flow-trace 0.6s linear infinite !important;
+}
+
+.animated-trace-edge path.react-flow__edge-interaction {
+  cursor: pointer;
+}
+

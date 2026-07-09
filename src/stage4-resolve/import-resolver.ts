@@ -20,12 +20,15 @@ export class ImportResolver {
     const { filePath, importPath, rawName } = candidate;
     const isPython = filePath.endsWith('.py');
     const isJava = filePath.endsWith('.java');
+    const isHtml = filePath.endsWith('.html');
 
     let resolvedSym: Symbol | undefined;
     if (isPython) {
       resolvedSym = this.resolvePythonImport(filePath, importPath, rawName, candidate);
     } else if (isJava) {
       resolvedSym = this.resolveJavaImport(filePath, importPath, rawName, candidate);
+    } else if (isHtml) {
+      resolvedSym = this.resolveHtmlImport(filePath, importPath, rawName, candidate);
     } else {
       resolvedSym = this.resolveTypeScriptImport(filePath, importPath, rawName, candidate);
     }
@@ -253,6 +256,50 @@ export class ImportResolver {
     const globalMatches = this.registry.byName.lookup(lookupName);
     const exportedMatch = globalMatches.find(s => s.kind !== 'file' && s.exported);
     if (exportedMatch) return exportedMatch;
+
+    return undefined;
+  }
+
+  private resolveHtmlImport(
+    filePath: string,
+    importPath: string,
+    rawName: string,
+    candidate: ReferenceCandidate
+  ): Symbol | undefined {
+    const dir = path.dirname(filePath);
+    const relativeTarget = path.join(dir, importPath).replace(/\\/g, '/');
+
+    const extIndex = relativeTarget.lastIndexOf('.');
+    const targetNoExt = extIndex !== -1 ? relativeTarget.slice(0, extIndex) : relativeTarget;
+
+    const candidates = [
+      relativeTarget,
+      targetNoExt,
+      relativeTarget + '.ts',
+      relativeTarget + '.tsx',
+      relativeTarget + '.js',
+      relativeTarget + '.jsx',
+      relativeTarget + '/index.ts',
+      relativeTarget + '/index.tsx',
+      relativeTarget + '/index.js'
+    ];
+
+    for (const cand of candidates) {
+      const match = this.registry.byModule.lookup(cand);
+      if (match) {
+        return match;
+      }
+    }
+
+    // Fallback: look up by matching file suffix
+    const cleanImportPath = importPath.replace(/^[\.\/]+/, '');
+    const allSymbols = this.registry.byId.values();
+    const targetFileSymbol = allSymbols.find(
+      s => s.kind === 'file' && s.filePath.replace(/\.[a-zA-Z0-9]+$/, '').endsWith(cleanImportPath)
+    );
+    if (targetFileSymbol) {
+      return targetFileSymbol;
+    }
 
     return undefined;
   }

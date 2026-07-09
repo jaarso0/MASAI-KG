@@ -1,4 +1,4 @@
-export type Language = 'typescript' | 'tsx' | 'javascript' | 'jsx' | 'python' | 'java';
+export type Language = 'typescript' | 'tsx' | 'javascript' | 'jsx' | 'python' | 'java' | 'html';
 
 export const EXTENSION_MAP: Record<string, Language> = {
   '.ts':  'typescript',
@@ -7,6 +7,7 @@ export const EXTENSION_MAP: Record<string, Language> = {
   '.jsx': 'jsx',
   '.py':  'python',
   '.java': 'java',
+  '.html': 'html',
 };
 
 export function detectLanguage(filePath: string): Language | null {
