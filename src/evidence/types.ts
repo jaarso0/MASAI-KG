@@ -5,6 +5,10 @@ export interface MaterializedNode {
   kind: string;
   file: string;
   signature?: string;
+  range?: {
+    startLine: number;
+    endLine: number;
+  };
   source?: {
     startLine: number;
     endLine: number;

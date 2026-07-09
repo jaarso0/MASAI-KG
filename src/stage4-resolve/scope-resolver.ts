@@ -1,3 +1,4 @@
+import * as path from 'path';
 import { ReferenceCandidate, Symbol, Scope, Containment } from '../semantic-model/types.js';
 import { SymbolRegistry } from '../stage3-registry/registry.js';
 import { isRangeContained } from '../stage3-registry/registry.js';
@@ -66,9 +67,12 @@ export class ScopeResolver {
     }
 
     // Fall back to best-effort qualified name lookup (qualified_name method)
+    const category = this.getLanguageCategory(filePath);
     if (qualifierChain.length > 1) {
       const qname = qualifierChain.join('.');
-      const qnameMatches = this.registry.byQualifiedName.lookup(qname);
+      const qnameMatches = this.registry.byQualifiedName.lookup(qname).filter(
+        s => this.getLanguageCategory(s.filePath) === category
+      );
       if (qnameMatches.length > 0) {
         // Return first match
         return { symbol: qnameMatches[0], method: 'qualified_name' };
@@ -76,7 +80,9 @@ export class ScopeResolver {
     }
 
     // Final fallback: global lookup by name (global_fallback method)
-    const nameMatches = this.registry.byName.lookup(nameToLookUp);
+    const nameMatches = this.registry.byName.lookup(nameToLookUp).filter(
+      s => this.getLanguageCategory(s.filePath) === category
+    );
     // Prefer non-file, non-project symbols first
     const cleanMatches = nameMatches.filter(s => s.kind !== 'file' && s.kind !== 'project');
     const bestMatch = cleanMatches[0] || nameMatches[0];
@@ -229,5 +235,14 @@ export class ScopeResolver {
     }
 
     return undefined;
+  }
+
+  private getLanguageCategory(filePath: string): string {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.py') return 'python';
+    if (ext === '.java') return 'java';
+    if (ext === '.html') return 'html';
+    if (['.ts', '.tsx', '.js', '.jsx'].includes(ext)) return 'typescript';
+    return 'unknown';
   }
 }

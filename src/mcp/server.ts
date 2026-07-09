@@ -283,3 +283,43 @@ export class MCPServer {
     });
   }
 }
+
+function formatResultToMarkdown(result: any, plan: any): string {
+  if (result.status === 'not_found') {
+    return `### ❌ Anchor Not Found\n\nCould not resolve the anchor query: **"${result.missingQueries.join('", "')}"**.\n\nPlease verify the spelling or try a broader search query.`;
+  }
+
+  if (result.status === 'ambiguous') {
+    let md = `### ⚠️ Ambiguous Anchor Query\n\nThe query **"${result.ambiguousAnchors[0].query}"** resolved to multiple candidates. Please refine your query using a more specific name (e.g., \`Class.method\`) or one of the unique IDs below:\n\n`;
+
+    result.ambiguousAnchors[0].candidates.forEach((cand: any, idx: number) => {
+      const matchType = cand.matchReasons?.[0] || 'Name match';
+      md += `${idx + 1}. **${cand.name}** (${cand.nodeId.split('::').pop()?.includes('.') ? 'method' : 'class'})\n`;
+      md += `   - **ID**: \`${cand.nodeId}\`\n`;
+      md += `   - **File**: \`${cand.file}\`\n`;
+      md += `   - **Match Reason**: ${matchType}\n\n`;
+    });
+    return md.trim();
+  }
+
+  if (result.status === 'success') {
+    if (result.operation === 'search') {
+      let md = `### 🔍 Search Results for "${plan.anchors[0].query}"\n\n`;
+      if (!result.candidates || result.candidates.length === 0) {
+        return md + `No matching symbols found.`;
+      }
+
+      result.candidates.forEach((node: any, idx: number) => {
+        md += `${idx + 1}. **${node.name}** (${node.nodeId.split('::').pop()?.includes('.') ? 'method' : 'class'})\n`;
+        md += `   - **ID**: \`${node.nodeId}\`\n`;
+        md += `   - **File**: \`${node.file}\`\n`;
+        md += '\n';
+      });
+      return md.trim();
+    }
+
+    return result.serializedContext;
+  }
+
+  return JSON.stringify(result, null, 2);
+}

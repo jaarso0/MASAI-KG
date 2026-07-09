@@ -76,6 +76,16 @@ export class RequestController {
     }
 
     if (resolution.status === 'ambiguous') {
+      const isSearch = plan.operation === 'region' && plan.constraints?.requestedDepth === 0;
+      if (isSearch) {
+        const candidates = resolution.ambiguousAnchors.flatMap(a => a.candidates);
+        return {
+          status: 'success',
+          operation: 'search',
+          candidates
+        };
+      }
+
       // Return candidates immediately to Host LLM without executing traversal
       return {
         status: 'ambiguous',

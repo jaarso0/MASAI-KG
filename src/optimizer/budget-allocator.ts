@@ -67,6 +67,11 @@ export function allocateBudget(
     });
 
     for (const node of sortedForUpgrade) {
+      if (['class', 'file', 'module', 'project', 'package'].includes(node.kind)) {
+        levels.set(node.nodeId, 'SIGNATURE');
+        continue;
+      }
+
       if (!node.source?.text) continue; // nothing to upgrade
 
       // Try FULL upgrade

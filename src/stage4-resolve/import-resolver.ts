@@ -156,7 +156,10 @@ export class ImportResolver {
 
     // Try a global lookup of the name among exported symbols if path-based resolution fails
     const globalMatches = this.registry.byName.lookup(lookupName);
-    const exportedMatch = globalMatches.find(s => s.kind !== 'file' && s.exported);
+    const category = this.getLanguageCategory(filePath);
+    const exportedMatch = globalMatches.find(s => 
+      s.kind !== 'file' && s.exported && this.getLanguageCategory(s.filePath) === category
+    );
     if (exportedMatch) return exportedMatch;
 
     return undefined;
@@ -217,7 +220,10 @@ export class ImportResolver {
 
     // Fallback: look up globally by name
     const globalMatches = this.registry.byName.lookup(lookupName);
-    const exportedMatch = globalMatches.find(s => s.kind !== 'file' && s.exported);
+    const category = this.getLanguageCategory(filePath);
+    const exportedMatch = globalMatches.find(s => 
+      s.kind !== 'file' && s.exported && this.getLanguageCategory(s.filePath) === category
+    );
     if (exportedMatch) return exportedMatch;
 
     return undefined;
@@ -254,7 +260,10 @@ export class ImportResolver {
 
     // Fallback: look up globally by name
     const globalMatches = this.registry.byName.lookup(lookupName);
-    const exportedMatch = globalMatches.find(s => s.kind !== 'file' && s.exported);
+    const category = this.getLanguageCategory(filePath);
+    const exportedMatch = globalMatches.find(s => 
+      s.kind !== 'file' && s.exported && this.getLanguageCategory(s.filePath) === category
+    );
     if (exportedMatch) return exportedMatch;
 
     return undefined;
@@ -302,5 +311,14 @@ export class ImportResolver {
     }
 
     return undefined;
+  }
+
+  private getLanguageCategory(filePath: string): string {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.py') return 'python';
+    if (ext === '.java') return 'java';
+    if (ext === '.html') return 'html';
+    if (['.ts', '.tsx', '.js', '.jsx'].includes(ext)) return 'typescript';
+    return 'unknown';
   }
 }

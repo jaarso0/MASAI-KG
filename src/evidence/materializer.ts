@@ -132,12 +132,19 @@ export class EvidenceMaterializer {
       if (!lines) {
         // Fallback for missing/unreadable files (return metadata only)
         for (const n of nodes) {
+          const range = n.properties.range as any;
+          const rangeInfo = (range && range.start && range.end) ? {
+            startLine: range.start.line + 1,
+            endLine: range.end.line + 1
+          } : undefined;
+
           materializedNodes.push({
             nodeId: n.nodeId,
             name: n.name,
             qualifiedName: n.qualifiedName,
             kind: n.kind,
             file: n.filePath,
+            range: rangeInfo,
             structuralRole: nodeRoleMap.get(n.nodeId) || 'direct_neighbor'
           });
         }
@@ -170,6 +177,11 @@ export class EvidenceMaterializer {
           }
         }
 
+        const rangeInfo = (range && range.start && range.end) ? {
+          startLine: range.start.line + 1,
+          endLine: range.end.line + 1
+        } : undefined;
+
         materializedNodes.push({
           nodeId: n.nodeId,
           name: n.name,
@@ -177,6 +189,7 @@ export class EvidenceMaterializer {
           kind: n.kind,
           file: n.filePath,
           signature: materializeOptions.signatures ? signature : undefined,
+          range: rangeInfo,
           source: (materializeOptions.source && sourceText && range) ? {
             startLine: range.start.line + 1,
             endLine: range.end.line + 1,
@@ -211,9 +224,21 @@ export class EvidenceMaterializer {
             
             let foundLine = -1;
             for (let l = callerRange.start.line; l <= callerRange.end.line; l++) {
-              if (l < callerLines.length && regex.test(callerLines[l])) {
-                foundLine = l;
-                break;
+              if (l < callerLines.length) {
+                const lineContent = callerLines[l];
+                if (regex.test(lineContent)) {
+                  // Skip if the line is just a definition or parameter declaration/annotation
+                  const isFuncDef = new RegExp(`\\b(def|function)\\s+${nameWord}\\b`).test(lineContent);
+                  const isClassDef = new RegExp(`\\bclass\\s+${nameWord}\\b`).test(lineContent);
+                  const isParamOrType = new RegExp(`\\b${nameWord}\\s*:\\s*(Callable|str|int|float|bool|list|dict|tuple|set|Any|Optional|Union)\\b`, 'i').test(lineContent);
+
+                  if (isFuncDef || isClassDef || isParamOrType) {
+                    continue;
+                  }
+
+                  foundLine = l;
+                  break;
+                }
               }
             }
 
