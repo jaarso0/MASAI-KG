@@ -1,6 +1,6 @@
 import { MaterializedEvidence, MaterializedNode, MaterializedEdge } from '../../evidence/types.js';
 import { RepresentationLevel } from '../budget-allocator.js';
-import { getDisplayName, serializeNavigationPackage, formatResolutionConfidence, formatUnresolvedRefs } from './helper.js';
+import { getDisplayName, serializeNavigationPackage, formatResolutionConfidence, formatUnresolvedRefs, formatTestCoverage, formatConfidenceSummary } from './helper.js';
 
 export function serializePath(
   evidence: MaterializedEvidence,
@@ -21,6 +21,10 @@ export function serializePath(
 
   let output = '=== PATH FINDING RESULT ===\n\n';
 
+  const pathReferenceEdges = evidence.edges.filter(e => e.resolutionMethod !== undefined);
+  const summary = formatConfidenceSummary(pathReferenceEdges, 'reference edge(s) across all path(s)');
+  if (summary) output += summary + '\n';
+
   paths.forEach((pathObj, pathIdx) => {
     output += `Path ${pathIdx + 1}:\n`;
 
@@ -40,6 +44,8 @@ export function serializePath(
         }
         const unresolvedNote = formatUnresolvedRefs(node);
         if (unresolvedNote) output += '  ' + unresolvedNote;
+        const testNote = formatTestCoverage(node);
+        if (testNote) output += '  ' + testNote;
       }
 
       // Print relationship with callsites

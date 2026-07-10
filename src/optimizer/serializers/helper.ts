@@ -27,6 +27,33 @@ export function formatUnresolvedRefs(node: MaterializedNode): string {
   return `  ⚠ ${node.unresolvedRefs.length} unresolved reference(s) from here: ${names}${more}\n`;
 }
 
+/** `hasCoveringTests === false` means a test file was checked and none referenced this symbol. */
+export function formatTestCoverage(node: MaterializedNode): string {
+  if (node.hasCoveringTests === false) {
+    return `  ⚠️ no covering tests found\n`;
+  }
+  return '';
+}
+
+/**
+ * One-line rollup of how many edges/dependents are high- vs low-confidence, so a caller
+ * can judge overall trust in a result before reading every individually-tagged line.
+ */
+export function formatConfidenceSummary(
+  items: { resolutionMethod?: string }[],
+  label: string
+): string {
+  if (items.length === 0) return '';
+  const lowConfidence = items.filter(i => i.resolutionMethod === 'global_fallback').length;
+  const highConfidence = items.length - lowConfidence;
+  const parts = [`${items.length} ${label}`];
+  const breakdown: string[] = [];
+  if (highConfidence > 0) breakdown.push(`${highConfidence} high-confidence`);
+  if (lowConfidence > 0) breakdown.push(`${lowConfidence} low-confidence (name-only match)`);
+  if (breakdown.length > 0) parts.push(`— ${breakdown.join(', ')}`);
+  return parts.join(' ') + '\n';
+}
+
 /**
  * Serializes target nodes into a clean "Navigation Package" recommended reading index.
  * Groups by file path, sorts chronologically by line number, and details roles/kinds.

@@ -1,6 +1,6 @@
 import { MaterializedEvidence } from '../../evidence/types.js';
 import { RepresentationLevel } from '../budget-allocator.js';
-import { getDisplayName, serializeNavigationPackage, formatResolutionConfidence, formatUnresolvedRefs } from './helper.js';
+import { getDisplayName, serializeNavigationPackage, formatResolutionConfidence, formatUnresolvedRefs, formatTestCoverage, formatConfidenceSummary } from './helper.js';
 
 export function serializeImpact(
   evidence: MaterializedEvidence,
@@ -27,6 +27,7 @@ export function serializeImpact(
     if (rootNode.signature) output += `Signature: ${rootNode.signature}\n`;
     if (rootNode.docs) output += `Docs:\n${rootNode.docs.split('\n').map(l => '  ' + l).join('\n')}\n`;
     output += formatUnresolvedRefs(rootNode);
+    output += formatTestCoverage(rootNode);
   } else {
     output += `Changed Symbol ID: ${rootId}\n`;
   }
@@ -36,6 +37,13 @@ export function serializeImpact(
     output += 'No downstream dependents or affected symbols were found.\n';
     return output.trim();
   }
+
+  // 1b. Confidence rollup — how much of this cone to actually trust before reading every line
+  const affectedResolutionMethods = affected.map(a => ({
+    resolutionMethod: resolutionByEdgeKey.get(`${a.nodeId}:${a.via}`)
+  }));
+  output += formatConfidenceSummary(affectedResolutionMethods, 'dependent(s) found');
+  output += '\n';
 
   // 2. Group affected nodes by depth
   const byDepth = new Map<number, Array<{ nodeId: string; via: string }>>();
@@ -60,6 +68,7 @@ export function serializeImpact(
         output += `- ${displayName} (${node.kind}) [via: ${item.via}]${formatResolutionConfidence(resolutionMethod)}\n`;
         output += `  File: ${node.file}\n`;
         output += formatUnresolvedRefs(node);
+        output += formatTestCoverage(node);
       } else {
         output += `- [ID: ${item.nodeId}] [via: ${item.via}]\n`;
       }

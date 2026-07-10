@@ -146,7 +146,8 @@ export class EvidenceMaterializer {
             file: n.filePath,
             range: rangeInfo,
             structuralRole: nodeRoleMap.get(n.nodeId) || 'direct_neighbor',
-            unresolvedRefs: this.graph.getUnresolvedReferences(n.nodeId)
+            unresolvedRefs: this.graph.getUnresolvedReferences(n.nodeId),
+            hasCoveringTests: this.computeTestCoverage(n.kind, n.nodeId)
           });
         }
         continue;
@@ -198,7 +199,8 @@ export class EvidenceMaterializer {
           } : undefined,
           docs: docs || undefined,
           structuralRole: nodeRoleMap.get(n.nodeId) || 'direct_neighbor',
-          unresolvedRefs: this.graph.getUnresolvedReferences(n.nodeId)
+          unresolvedRefs: this.graph.getUnresolvedReferences(n.nodeId),
+          hasCoveringTests: this.computeTestCoverage(n.kind, n.nodeId)
         });
       }
     }
@@ -268,6 +270,14 @@ export class EvidenceMaterializer {
       nodes: materializedNodes,
       edges: materializedEdges
     };
+  }
+
+  private static readonly TESTABLE_KINDS = new Set(['function', 'method', 'class', 'interface']);
+
+  /** Only meaningful for callable/type kinds — undefined otherwise so serializers can skip it cleanly. */
+  private computeTestCoverage(kind: string, nodeId: string): boolean | undefined {
+    if (!EvidenceMaterializer.TESTABLE_KINDS.has(kind)) return undefined;
+    return this.graph.isTestCovered(nodeId);
   }
 
   private async loadFileLines(filePath: string): Promise<string[] | null> {
