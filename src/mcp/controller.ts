@@ -1,4 +1,4 @@
-import { KnowledgeGraph } from '../stage5-graph/graph.js';
+import { KnowledgeGraph } from '../graph/graph.js';
 import { GraphQueryPlan } from './types.js';
 import { AnchorResolver } from '../resolution/anchor-resolver.js';
 import { GraphExecutor } from '../executor/graph-executor.js';
@@ -45,7 +45,7 @@ export class RequestController {
     this.resolver = new AnchorResolver(graph);
     this.executor = new GraphExecutor(graph);
     this.materializer = new EvidenceMaterializer(graph, projectRoot);
-    
+
     // Bind materializer's file line loader to the optimizer
     this.optimizer = new QueryContextOptimizer(
       async (filePath: string) => {
@@ -66,7 +66,7 @@ export class RequestController {
 
     // 1. Anchor Resolution Phase
     const resolution = this.resolver.resolveAll(plan.anchors);
-    
+
     if (resolution.status === 'not_found') {
       return {
         status: 'not_found',

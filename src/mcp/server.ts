@@ -1,5 +1,5 @@
 import * as readline from 'readline';
-import { KnowledgeGraph } from '../stage5-graph/graph.js';
+import { KnowledgeGraph } from '../graph/graph.js';
 import { GraphQueryPlan } from './types.js';
 import { validateGraphQueryPlan } from './schemas.js';
 import {
@@ -164,7 +164,7 @@ export class MCPServer {
       }
 
       console.error(`Executing tool ${toolName} with compiled plan:`, JSON.stringify(plan));
-      
+
       // Execute the query plan through the request controller
       const result = await this.controller.processPlan(plan);
 
