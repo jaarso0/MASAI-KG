@@ -1,4 +1,4 @@
-import { KnowledgeGraph, KGEdge, KGNode } from '../../stage5-graph/graph.js';
+import { KnowledgeGraph, KGEdge, KGNode } from '../../graph/graph.js';
 import { ImpactResult, StructuralEdge } from '../result-types.js';
 
 export function executeImpact(

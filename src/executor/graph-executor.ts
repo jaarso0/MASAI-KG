@@ -1,4 +1,4 @@
-import { KnowledgeGraph } from '../stage5-graph/graph.js';
+import { KnowledgeGraph } from '../graph/graph.js';
 import { executeRegion } from './operations/region.js';
 import { executePath } from './operations/path.js';
 import { executeImpact } from './operations/impact.js';

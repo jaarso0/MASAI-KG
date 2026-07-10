@@ -1,4 +1,4 @@
-import { KnowledgeGraph, KGNode, KGEdge } from '../../stage5-graph/graph.js';
+import { KnowledgeGraph, KGNode, KGEdge } from '../../graph/graph.js';
 import { RegionResult, StructuralNode, StructuralEdge } from '../result-types.js';
 
 export function executeRegion(
@@ -12,11 +12,11 @@ export function executeRegion(
   }
 ): RegionResult {
   const { anchors, direction, edgeKinds, depth, nodeLimit } = options;
-  
+
   const distance: Record<string, number> = {};
   const visitedNodes = new Set<string>();
   const visitedEdges = new Set<string>();
-  
+
   const resultNodesMap = new Map<string, KGNode>();
   const resultEdges: KGEdge[] = [];
 

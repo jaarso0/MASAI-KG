@@ -1,4 +1,4 @@
-import { KnowledgeGraph, KGEdge } from '../../stage5-graph/graph.js';
+import { KnowledgeGraph, KGEdge } from '../../graph/graph.js';
 import { PathResult, StructuralEdge } from '../result-types.js';
 
 interface PathState {
@@ -31,7 +31,7 @@ export function executePath(
   };
 
   const queue: PathState[] = [{ currentNodeId: from, nodes: [from], edges: [] }];
-  
+
   // Track visited nodes at specific depths to prevent redundant work
   // but allow multiple paths if they hit the target at the same/minimal depth.
   const minDepthToNode = new Map<string, number>();
