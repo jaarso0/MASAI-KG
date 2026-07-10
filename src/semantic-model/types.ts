@@ -134,6 +134,28 @@ export interface ResolvedReference {
 
 
 // ════════════════════════════════════════════
+// LOCAL TYPE BINDING — instance type of a function/method-local variable
+// ════════════════════════════════════════════
+//
+// Local (block/function-scoped) variables never become Symbols — they'd
+// pollute name/qualified-name search and the graph with throwaway names.
+// But we still need to know "inside function F, the local named `expander`
+// holds a GraphExpander" so Stage 4 can resolve `expander.expand(...)`.
+// These bindings are resolver-only plumbing: never merged into the graph.
+
+export interface LocalTypeBinding {
+  ownerSymbolId: string;         // the function/method Symbol whose body declares this local
+  name: string;                  // local variable name
+  filePath: string;
+  range: Range;                  // range of the declaration, for future shadowing resolution
+  declaredType: {
+    qualifierChain: string[];
+    rawName: string;
+  };
+}
+
+
+// ════════════════════════════════════════════
 // DIAGNOSTIC — pipeline health & debugging
 // ════════════════════════════════════════════
 
@@ -169,6 +191,7 @@ export interface PartialSemanticModel {
   containments: Containment[];
   references: ReferenceCandidate[];   // unresolved at this stage
   diagnostics: Diagnostic[];          // parse errors, extraction warnings
+  localTypeBindings: LocalTypeBinding[];
 }
 
 

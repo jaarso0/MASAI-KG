@@ -4,7 +4,8 @@ import {
   Containment,
   ReferenceCandidate,
   PartialSemanticModel,
-  Diagnostic
+  Diagnostic,
+  LocalTypeBinding
 } from './types.js';
 import { createSymbol, createContainment } from './builder.js';
 
@@ -14,6 +15,7 @@ export interface MergeableModel {
   containments: Containment[];
   references: ReferenceCandidate[];
   diagnostics: Diagnostic[];
+  localTypeBindings: LocalTypeBinding[];
 }
 
 /**
@@ -29,6 +31,7 @@ export function mergePartials(
   const containments: Containment[] = [];
   const references: ReferenceCandidate[] = [];
   const diagnostics: Diagnostic[] = [];
+  const localTypeBindings: LocalTypeBinding[] = [];
 
   for (const partial of partials) {
     const filePath = partial.filePath.replace(/\\/g, '/');
@@ -70,6 +73,7 @@ export function mergePartials(
     containments.push(...partial.containments);
     references.push(...partial.references);
     diagnostics.push(...partial.diagnostics);
+    localTypeBindings.push(...(partial.localTypeBindings ?? []));
   }
 
   return {
@@ -77,7 +81,8 @@ export function mergePartials(
     scopes,
     containments,
     references,
-    diagnostics
+    diagnostics,
+    localTypeBindings
   };
 }
 
@@ -117,19 +122,21 @@ export function updatePartial(
   });
   const filteredReferences = current.references.filter(r => r.filePath !== normalizedPath);
   const filteredDiagnostics = current.diagnostics.filter(d => d.filePath !== normalizedPath);
+  const filteredLocalTypeBindings = (current.localTypeBindings ?? []).filter(b => b.filePath !== normalizedPath);
 
   const nextModel: MergeableModel = {
     symbols: [projectSymbol, ...filteredSymbols],
     scopes: filteredScopes,
     containments: filteredContainments,
     references: filteredReferences,
-    diagnostics: filteredDiagnostics
+    diagnostics: filteredDiagnostics,
+    localTypeBindings: filteredLocalTypeBindings
   };
 
   if (newPartial) {
     // Merge the single new partial in
     const mergedNew = mergePartials([newPartial], projectSymbol);
-    
+
     // Append symbols, scopes, containments, references, diagnostics
     // (Skip project symbol since we already have it)
     for (const sym of mergedNew.symbols) {
@@ -141,6 +148,7 @@ export function updatePartial(
     nextModel.containments.push(...mergedNew.containments);
     nextModel.references.push(...mergedNew.references);
     nextModel.diagnostics.push(...mergedNew.diagnostics);
+    nextModel.localTypeBindings.push(...mergedNew.localTypeBindings);
   }
 
   return nextModel;

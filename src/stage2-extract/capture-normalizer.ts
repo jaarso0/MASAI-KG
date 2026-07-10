@@ -10,7 +10,8 @@ import {
   Range,
   SymbolKind,
   ReferenceKind,
-  ScopeKind
+  ScopeKind,
+  LocalTypeBinding
 } from '../semantic-model/types.js';
 import { ContextTracker } from './context-tracker.js';
 import {
@@ -316,6 +317,7 @@ export interface NormalizerOutput {
   containments: Containment[];
   references: ReferenceCandidate[];
   diagnostics: Diagnostic[];
+  localTypeBindings: LocalTypeBinding[];
 }
 
 export function normalizeCaptures(
@@ -330,6 +332,7 @@ export function normalizeCaptures(
   const containments: Containment[] = [];
   const references: ReferenceCandidate[] = [];
   const diagnostics: Diagnostic[] = [];
+  const localTypeBindings: LocalTypeBinding[] = [];
 
   // Create file-level symbol and global scope
   const fileRange = getRange(rootNode);
@@ -375,12 +378,28 @@ export function normalizeCaptures(
       const kindStr = tag.substring('definition.'.length);
       const kind: SymbolKind = kindStr as SymbolKind;
 
-      // Handle variable scope containment rule: skip local block/method variables
+      // Handle variable scope containment rule: local block/method variables don't become
+      // full Symbols (they'd pollute name search), but we still record their declared type
+      // as a resolver-only LocalTypeBinding so `localVar.method()` calls can be resolved.
       if (kind === 'variable') {
         const parentKind = tracker.currentParentSymbol?.kind;
         const isTopOrClassLevel =
           parentKind === undefined || parentKind === 'file' || parentKind === 'class' || parentKind === 'interface';
         if (!isTopOrClassLevel) {
+          const owner = tracker.currentParentSymbol;
+          const declaredTypeChain = getDeclaredTypeChain(node, filePath);
+          if (owner && declaredTypeChain && declaredTypeChain.length > 0) {
+            localTypeBindings.push({
+              ownerSymbolId: owner.id,
+              name,
+              filePath,
+              range: getRange(node),
+              declaredType: {
+                qualifierChain: declaredTypeChain,
+                rawName: declaredTypeChain.join('.')
+              }
+            });
+          }
           continue;
         }
       }
@@ -511,6 +530,7 @@ export function normalizeCaptures(
     scopes,
     containments,
     references,
-    diagnostics
+    diagnostics,
+    localTypeBindings
   };
 }

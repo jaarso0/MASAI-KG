@@ -45,6 +45,22 @@ export class ScopeResolver {
         }
       }
 
+      // Local (function/method-body) variables never became Symbols, so they can't show up
+      // in scopeSymbols above — check the resolver-only local type binding for this scope's
+      // owner instead, so `localVar.method()` still resolves through its declared type.
+      if (!matchedBase && qualifierChain.length > 1 && currentScope.ownerSymbolId) {
+        const localBinding = this.registry.localBindings.lookup(currentScope.ownerSymbolId, nameToLookUp);
+        if (localBinding) {
+          const typeSymbol = this.resolveTypeSymbol(localBinding.declaredType.qualifierChain, filePath);
+          if (typeSymbol) {
+            const resolvedMember = this.resolveChain(typeSymbol, qualifierChain, 1);
+            if (resolvedMember) {
+              return { symbol: resolvedMember, method: 'scope' };
+            }
+          }
+        }
+      }
+
       // Walk up the scope parent chain
       if (currentScope.parentScopeId) {
         currentScope = this.registry.byScope.getScopeById(currentScope.parentScopeId);
@@ -144,36 +160,12 @@ export class ScopeResolver {
   }
 
   private getInnermostScope(filePath: string, range: Range): Scope | undefined {
-    // Scan all registered scopes (we can find scopes from their owner symbol id or files)
-    // To make it simple and reliable, let's search for scopes in the same file
-    // that contain the range, and find the smallest.
-    const allScopes = this.registry.byId.values()
-      .filter(s => s.kind === 'file')
-      .map(s => this.registry.byScope.getScopeForSymbol(s.id))
-      .filter((s): s is Scope => s !== undefined);
-      
-    // Actually, we can get rawScopes if we walk registry raw scopes list,
-    // or we can just access all scopes that the registry knows of.
-    // In builder, every scope has a unique ID, let's find scopes in our registered file:
-    const fileSymbols = this.registry.byFile.lookup(filePath);
-    const scopeIds = new Set<string>();
-    for (const sym of fileSymbols) {
-      const sc = this.registry.byScope.getScopeForSymbol(sym.id);
-      if (sc) {
-        scopeIds.add(sc.id);
-        // Also capture parent scopes of this scope
-        let parent = sc.parentScopeId;
-        while (parent) {
-          scopeIds.add(parent);
-          const parentScope = this.registry.byScope.getScopeById(parent);
-          parent = parentScope ? parentScope.parentScopeId : null;
-        }
-      }
-    }
-
-    const scopes = Array.from(scopeIds)
-      .map(id => this.registry.byScope.getScopeById(id))
-      .filter((s): s is Scope => s !== undefined && s.filePath === filePath && isRangeContained(range, s.range));
+    // Every scope in the file is a candidate, regardless of whether anything declared
+    // directly inside it became a full Symbol — a function body containing only local
+    // variables and calls (no nested declarations) still needs its own scope to be found.
+    const scopes = this.registry.byScope
+      .getScopesForFile(filePath)
+      .filter(s => isRangeContained(range, s.range));
 
     if (scopes.length === 0) return undefined;
 

@@ -17,7 +17,8 @@ export function extractPartialModel(parsed: ParsedFile): PartialSemanticModel {
       scopes: [],
       containments: [],
       references: [],
-      diagnostics: []
+      diagnostics: [],
+      localTypeBindings: []
     };
   }
 
@@ -30,6 +31,7 @@ export function extractPartialModel(parsed: ParsedFile): PartialSemanticModel {
     scopes: normalized.scopes,
     containments: normalized.containments,
     references: normalized.references,
-    diagnostics: normalized.diagnostics
+    diagnostics: normalized.diagnostics,
+    localTypeBindings: normalized.localTypeBindings
   };
 }

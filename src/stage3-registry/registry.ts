@@ -1,4 +1,4 @@
-import { Symbol, Scope, Range } from '../semantic-model/types.js';
+import { Symbol, Scope, Range, LocalTypeBinding } from '../semantic-model/types.js';
 import { MergeableModel } from '../semantic-model/merge.js';
 
 // ════════════════════════════════════════════
@@ -178,6 +178,39 @@ export class ModuleIndex {
   }
 }
 
+export class LocalBindingIndex {
+  // ownerSymbolId::name -> bindings (usually one; last-declared wins on lookup)
+  private index = new Map<string, LocalTypeBinding[]>();
+
+  public add(binding: LocalTypeBinding): void {
+    const key = `${binding.ownerSymbolId}::${binding.name}`;
+    const list = this.index.get(key) || [];
+    list.push(binding);
+    this.index.set(key, list);
+  }
+
+  public lookup(ownerSymbolId: string, name: string): LocalTypeBinding | undefined {
+    const list = this.index.get(`${ownerSymbolId}::${name}`);
+    return list ? list[list.length - 1] : undefined;
+  }
+
+  public removeFile(filePath: string): void {
+    const normalized = filePath.replace(/\\/g, '/');
+    for (const [key, bindings] of this.index.entries()) {
+      const filtered = bindings.filter(b => b.filePath !== normalized);
+      if (filtered.length === 0) {
+        this.index.delete(key);
+      } else {
+        this.index.set(key, filtered);
+      }
+    }
+  }
+
+  public clear(): void {
+    this.index.clear();
+  }
+}
+
 export class ScopeIndex {
   // Maps Scope.id -> Symbols declared inside its innermost boundary
   private byScopeId = new Map<string, Symbol[]>();
@@ -234,6 +267,11 @@ export class ScopeIndex {
     return this.scopes.get(scopeId);
   }
 
+  public getScopesForFile(filePath: string): Scope[] {
+    const normalized = filePath.replace(/\\/g, '/');
+    return Array.from(this.scopes.values()).filter(s => s.filePath === normalized);
+  }
+
   public clear(): void {
     this.byScopeId.clear();
     this.bySymbolId.clear();
@@ -252,6 +290,7 @@ export class SymbolRegistry {
   public readonly byFile = new FileIndex();
   public readonly byModule = new ModuleIndex();
   public readonly byScope = new ScopeIndex();
+  public readonly localBindings = new LocalBindingIndex();
 
   private rawScopes: Scope[] = [];
 
@@ -269,6 +308,10 @@ export class SymbolRegistry {
       if (sym.kind === 'file') {
         this.byModule.add(sym.filePath, sym);
       }
+    }
+
+    for (const binding of mergedModel.localTypeBindings ?? []) {
+      this.localBindings.add(binding);
     }
 
     // Build Scope Index
@@ -318,6 +361,7 @@ export class SymbolRegistry {
     this.byFile.clear();
     this.byModule.clear();
     this.byScope.clear();
+    this.localBindings.clear();
     this.rawScopes = [];
   }
 }

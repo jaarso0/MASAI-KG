@@ -113,7 +113,8 @@ export class Pipeline {
           return currentModel.resolvedReferences as any; // fallback
         })
       ],
-      diagnostics: currentModel.diagnostics
+      diagnostics: currentModel.diagnostics,
+      localTypeBindings: []
     };
 
     // To implement the v1 incremental correctly and robustly without hacks:
