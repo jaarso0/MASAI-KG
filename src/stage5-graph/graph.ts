@@ -44,6 +44,17 @@ export class KnowledgeGraph {
     return this.unresolvedByFromSymbol.get(symbolId) || [];
   }
 
+  private testCoveredSymbolIds = new Set<string>();
+
+  public markTestCovered(symbolId: string): void {
+    this.testCoveredSymbolIds.add(symbolId);
+  }
+
+  /** True if any test file holds a resolved reference to this symbol. */
+  public isTestCovered(symbolId: string): boolean {
+    return this.testCoveredSymbolIds.has(symbolId);
+  }
+
   public addNode(node: KGNode): void {
     this.nodes.set(node.id, node);
   }
@@ -255,7 +266,30 @@ export function buildGraphFromModel(model: SemanticModel): KnowledgeGraph {
     graph.addUnresolvedReference(ref.fromSymbolId, ref.rawName, ref.kind);
   }
 
+  // 5. Mark symbols as test-covered when a resolved reference to them originates
+  // from a test file — cheap heuristic, but enough to flag "nothing exercises this."
+  const filePathBySymbolId = new Map<string, string>();
+  for (const sym of model.symbols) {
+    filePathBySymbolId.set(sym.id, sym.filePath);
+  }
+  for (const ref of model.resolvedReferences) {
+    const fromFile = filePathBySymbolId.get(ref.fromSymbolId);
+    if (fromFile && isTestFile(fromFile)) {
+      graph.markTestCovered(ref.toSymbolId);
+    }
+  }
+
   return graph;
+}
+
+function isTestFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/').toLowerCase();
+  return (
+    /\/tests?\//.test(normalized) ||
+    /\.(test|spec)\.[a-z]+$/.test(normalized) ||
+    /(^|\/)test_[^/]+\.py$/.test(normalized) ||
+    /(^|\/)[^/]+_test\.py$/.test(normalized)
+  );
 }
 
 function mapSymbolToNode(sym: Symbol): KGNode {
