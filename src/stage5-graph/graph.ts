@@ -32,6 +32,17 @@ export class KnowledgeGraph {
   private edgesFrom = new Map<string, KGEdge[]>();
   private edgesTo = new Map<string, KGEdge[]>();
   private allEdgesList: KGEdge[] = [];
+  private unresolvedByFromSymbol = new Map<string, { rawName: string; kind: string }[]>();
+
+  public addUnresolvedReference(fromSymbolId: string, rawName: string, kind: string): void {
+    const list = this.unresolvedByFromSymbol.get(fromSymbolId) || [];
+    list.push({ rawName, kind });
+    this.unresolvedByFromSymbol.set(fromSymbolId, list);
+  }
+
+  public getUnresolvedReferences(symbolId: string): { rawName: string; kind: string }[] {
+    return this.unresolvedByFromSymbol.get(symbolId) || [];
+  }
 
   public addNode(node: KGNode): void {
     this.nodes.set(node.id, node);
@@ -236,6 +247,12 @@ export function buildGraphFromModel(model: SemanticModel): KnowledgeGraph {
       kind: ref.kind,
       resolutionMethod: ref.resolutionMethod
     });
+  }
+
+  // 4. Index unresolved references by the symbol that made the reference, so
+  // callers can see where the graph's picture near a symbol may be incomplete.
+  for (const ref of model.unresolvedReferences) {
+    graph.addUnresolvedReference(ref.fromSymbolId, ref.rawName, ref.kind);
   }
 
   return graph;
