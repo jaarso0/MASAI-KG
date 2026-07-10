@@ -1,5 +1,5 @@
-import { Language } from '../stage1-parse/lang-detect.js';
-import { ParsedFile } from '../stage1-parse/parsed-file.js';
+import { Language } from '../parse/lang-detect.js';
+import { ParsedFile } from '../parse/parsed-file.js';
 import { PartialSemanticModel } from '../semantic-model/types.js';
 import { extractPartialModel } from './extract.js';
 
