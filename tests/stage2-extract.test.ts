@@ -1,14 +1,14 @@
 import { describe, test, expect } from 'vitest';
 import * as path from 'path';
-import { parseProject } from '../src/stage1-parse/walker.js';
-import { extractorRegistry } from '../src/stage2-extract/extractor-registry.js';
-import { parserRegistry } from '../src/stage1-parse/parser-registry.js';
+import { parseProject } from '../src/parse/walker.js';
+import { extractorRegistry } from '../src/extract/extractor-registry.js';
+import { parserRegistry } from '../src/parse/parser-registry.js';
 
 describe('Stage 2 - Extract', () => {
   test('Extracts TS/JS symbols, scopes, containments, and candidates', async () => {
     const tsProjPath = path.resolve('tests/fixtures/typescript-project');
     const parsedFiles = await parseProject(tsProjPath);
-    
+
     const serviceFile = parsedFiles.find(f => f.filePath === 'src/services/user.ts');
     expect(serviceFile).toBeDefined();
 
@@ -16,10 +16,10 @@ describe('Stage 2 - Extract', () => {
     const partialModel = extractor.extract(serviceFile!);
 
     expect(partialModel.filePath).toBe('src/services/user.ts');
-    
+
     // Symbols extracted: file, UserService class, save method, getById method, users variable
     expect(partialModel.symbols.length).toBeGreaterThanOrEqual(4);
-    
+
     const classSym = partialModel.symbols.find(s => s.kind === 'class');
     expect(classSym).toBeDefined();
     expect(classSym?.id).toBe('src/services/user.ts::UserService');
@@ -107,7 +107,7 @@ describe('Stage 2 - Extract', () => {
 
     // Symbols: File, UserService class, save method, repo variable
     expect(partialModel.symbols.length).toBe(4);
-    
+
     const classSym = partialModel.symbols.find(s => s.kind === 'class');
     expect(classSym).toBeDefined();
     expect(classSym?.name).toBe('UserService');
@@ -137,7 +137,7 @@ describe('Stage 2 - Extract', () => {
 
     // References: Import, inherit, implement, call
     expect(partialModel.references.length).toBe(4);
-    
+
     const importRef = partialModel.references.find(r => r.kind === 'import');
     expect(importRef).toBeDefined();
     expect(importRef?.rawName).toBe('com.example.db.Repository');

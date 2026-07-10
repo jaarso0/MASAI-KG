@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { createSymbol, createScope } from '../src/semantic-model/builder.js';
-import { SymbolRegistry } from '../src/stage3-registry/registry.js';
+import { SymbolRegistry } from '../src/registry/registry.js';
 import { MergeableModel } from '../src/semantic-model/merge.js';
 
 describe('Stage 3 - Registry', () => {
@@ -83,7 +83,7 @@ describe('Stage 3 - Registry', () => {
 
   test('byScope index correctly identifies innermost scopes', () => {
     const filePath = 'index.ts';
-    
+
     const fileSymbol = createSymbol({
       filePath,
       chain: [filePath],

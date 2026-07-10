@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import * as path from 'path';
-import { parseProject } from '../src/stage1-parse/walker.js';
+import { parseProject } from '../src/parse/walker.js';
 
 describe('Stage 1 - Parse', () => {
   test('Parses Python project and matches AST structure', async () => {

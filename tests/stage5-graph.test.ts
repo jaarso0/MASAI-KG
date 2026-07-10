@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { createSymbol, createContainment } from '../src/semantic-model/builder.js';
-import { buildGraphFromModel, KnowledgeGraph } from '../src/stage5-graph/graph.js';
+import { buildGraphFromModel, KnowledgeGraph } from '../src/graph/graph.js';
 import { SemanticModel, ResolvedReference } from '../semantic-model/types.js';
 
 describe('Stage 5 - Graph', () => {

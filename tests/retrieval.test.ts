@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { createSymbol, createContainment } from '../src/semantic-model/builder.js';
-import { buildGraphFromModel } from '../src/stage5-graph/graph.js';
+import { buildGraphFromModel } from '../src/graph/graph.js';
 import { SemanticModel } from '../src/semantic-model/types.js';
 import { RetrievalEngine } from '../src/retrieval/api.js';
 import { RetrievalPlanner } from '../src/retrieval/planner.js';
