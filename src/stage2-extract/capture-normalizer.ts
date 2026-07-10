@@ -176,6 +176,49 @@ function getImportedName(nameNode: any): string {
 }
 
 // ════════════════════════════════════════════
+// DECLARED-TYPE INFERENCE (for instance member resolution)
+// ════════════════════════════════════════════
+//
+// Best-effort: figures out what class/type a variable holds, so Stage 4
+// can resolve `instance.method()` calls through to the class's members.
+// Only handles the common, unambiguous cases (explicit `new X()`, TS type
+// annotations, and `x = ClassName()` in Python where the callee looks
+// like a class name) — anything murkier is left unresolved rather than guessed.
+function getDeclaredTypeChain(node: any, filePath: string): string[] | undefined {
+  if (filePath.endsWith('.py')) {
+    if (node.type !== 'assignment') return undefined;
+    const right = node.childForFieldName('right');
+    if (!right || right.type !== 'call') return undefined;
+    const func = right.childForFieldName('function');
+    if (!func) return undefined;
+    const chain = getQualifierChain(func);
+    const last = chain[chain.length - 1];
+    if (!last || last[0] !== last[0].toUpperCase() || last[0] === last[0].toLowerCase()) return undefined;
+    return chain;
+  }
+
+  if (node.type !== 'variable_declarator') return undefined;
+
+  const typeAnnotation = node.childForFieldName('type');
+  if (typeAnnotation) {
+    const typeNode = typeAnnotation.children?.find(
+      (c: any) => c.type === 'type_identifier' || c.type === 'nested_type_identifier' || c.type === 'generic_type'
+    );
+    if (typeNode) {
+      return getQualifierChain(typeNode.type === 'generic_type' ? typeNode.childForFieldName('name') ?? typeNode : typeNode);
+    }
+  }
+
+  const value = node.childForFieldName('value');
+  if (value && value.type === 'new_expression') {
+    const ctor = value.childForFieldName('constructor');
+    if (ctor) return getQualifierChain(ctor);
+  }
+
+  return undefined;
+}
+
+// ════════════════════════════════════════════
 // VISIBILITY & EXPORT DETERMINERS
 // ════════════════════════════════════════════
 
@@ -350,6 +393,16 @@ export function normalizeCaptures(
       if (adapterMeta.apiRoute) symbolMetadata.apiRoute = adapterMeta.apiRoute;
       if (adapterMeta.dataModel) symbolMetadata.dataModel = adapterMeta.dataModel;
       if (adapterMeta.isService) symbolMetadata.isService = adapterMeta.isService;
+
+      if (kind === 'variable') {
+        const declaredTypeChain = getDeclaredTypeChain(node, filePath);
+        if (declaredTypeChain && declaredTypeChain.length > 0) {
+          symbolMetadata.declaredType = {
+            qualifierChain: declaredTypeChain,
+            rawName: declaredTypeChain.join('.')
+          };
+        }
+      }
 
       const sym = createSymbol({
         filePath,

@@ -206,6 +206,22 @@ export class ScopeResolver {
       }
     }
 
+    // Instance member access: `parentSymbol` is a variable (e.g. `const registry = new Foo()`),
+    // so its own containments are empty — the member actually lives on its declared type's class.
+    // Hop to the class symbol and retry the member lookup there.
+    if (parentSymbol.kind === 'variable') {
+      const declaredType = parentSymbol.metadata?.declaredType as
+        | { qualifierChain: string[] }
+        | undefined;
+      if (declaredType && declaredType.qualifierChain.length > 0) {
+        const typeSymbol = this.resolveTypeSymbol(declaredType.qualifierChain, parentSymbol.filePath);
+        if (typeSymbol && typeSymbol.id !== parentSymbol.id) {
+          const member = this.resolveMember(typeSymbol, memberName);
+          if (member) return member;
+        }
+      }
+    }
+
     // Dynamic member resolution for external symbols
     if (parentSymbol.metadata?.external) {
       const childId = `${parentSymbol.id}::${memberName}`;
@@ -235,6 +251,25 @@ export class ScopeResolver {
     }
 
     return undefined;
+  }
+
+  private resolveTypeSymbol(qualifierChain: string[], filePath: string): Symbol | undefined {
+    const category = this.getLanguageCategory(filePath);
+    const isTypeKind = (s: Symbol) => s.kind === 'class' || s.kind === 'interface';
+
+    if (qualifierChain.length > 1) {
+      const qname = qualifierChain.join('.');
+      const qnameMatches = this.registry.byQualifiedName
+        .lookup(qname)
+        .filter(s => isTypeKind(s) && this.getLanguageCategory(s.filePath) === category);
+      if (qnameMatches.length > 0) return qnameMatches[0];
+    }
+
+    const name = qualifierChain[qualifierChain.length - 1];
+    const nameMatches = this.registry.byName
+      .lookup(name)
+      .filter(s => isTypeKind(s) && this.getLanguageCategory(s.filePath) === category);
+    return nameMatches[0];
   }
 
   private getLanguageCategory(filePath: string): string {
