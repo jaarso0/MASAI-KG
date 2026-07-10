@@ -1,6 +1,6 @@
 import { MaterializedEvidence } from '../../evidence/types.js';
 import { RepresentationLevel } from '../budget-allocator.js';
-import { getDisplayName, serializeNavigationPackage, formatResolutionConfidence, formatUnresolvedRefs } from './helper.js';
+import { getDisplayName, serializeNavigationPackage, formatResolutionConfidence, formatUnresolvedRefs, formatTestCoverage, formatConfidenceSummary } from './helper.js';
 
 export function serializeRegion(
   evidence: MaterializedEvidence,
@@ -22,6 +22,7 @@ export function serializeRegion(
       if (node.signature) output += `  Signature: ${node.signature}\n`;
       if (node.docs) output += `  Docs:\n${node.docs.split('\n').map(l => '    ' + l).join('\n')}\n`;
       output += formatUnresolvedRefs(node);
+      output += formatTestCoverage(node);
     } else {
       output += `- [Unresolved Anchor ID: ${rootId}]\n`;
     }
@@ -29,7 +30,12 @@ export function serializeRegion(
   output += '\n';
 
   // 2. Incoming and Outgoing Edges summary (Deduplicated)
-  output += 'Relationships:\n';
+  // Only reference edges (call/import/inherit/etc.) carry a resolutionMethod — structural
+  // containment edges (has_member/owns) aren't "resolved" in the same sense, so they're
+  // excluded from the confidence rollup to avoid inflating the high-confidence count.
+  const referenceEdges = evidence.edges.filter(e => e.resolutionMethod !== undefined);
+  output += formatConfidenceSummary(referenceEdges, 'reference edge(s) in this neighborhood');
+  output += '\nRelationships:\n';
   const printedEdges = new Set<string>();
   evidence.edges.forEach(edge => {
     const src = nodeMap.get(edge.source);

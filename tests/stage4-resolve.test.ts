@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import { createSymbol, createScope, createReferenceCandidate, createContainment } from '../src/semantic-model/builder.js';
-import { SymbolRegistry } from '../src/stage3-registry/registry.js';
-import { resolveAll } from '../src/stage4-resolve/resolver.js';
+import { SymbolRegistry } from '../src/registry/registry.js';
+import { resolveAll } from '../src/resolve/resolver.js';
 import { MergeableModel } from '../src/semantic-model/merge.js';
 
 describe('Stage 4 - Resolve', () => {
@@ -80,7 +80,7 @@ describe('Stage 4 - Resolve', () => {
 
   test('Scope chain walks up to find lexical symbols', () => {
     const filePath = 'app.ts';
-    
+
     const fileSymbol = createSymbol({
       filePath,
       chain: [filePath],
@@ -170,7 +170,7 @@ describe('Stage 4 - Resolve', () => {
 
   test('Unresolvable references degrade gracefully', () => {
     const filePath = 'app.ts';
-    
+
     const fileSymbol = createSymbol({
       filePath,
       chain: [filePath],

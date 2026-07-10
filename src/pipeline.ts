@@ -1,11 +1,11 @@
 import * as path from 'path';
-import { parseProject } from './stage1-parse/walker.js';
-import { extractorRegistry } from './stage2-extract/extractor-registry.js';
+import { parseProject } from './parse/walker.js';
+import { extractorRegistry } from './extract/extractor-registry.js';
 import { createSymbol } from './semantic-model/builder.js';
 import { mergePartials } from './semantic-model/merge.js';
-import { SymbolRegistry } from './stage3-registry/registry.js';
-import { resolveAll } from './stage4-resolve/resolver.js';
-import { buildGraphFromModel, KnowledgeGraph } from './stage5-graph/graph.js';
+import { SymbolRegistry } from './registry/registry.js';
+import { resolveAll } from './resolve/resolver.js';
+import { buildGraphFromModel, KnowledgeGraph } from './graph/graph.js';
 import { SemanticModel } from './semantic-model/types.js';
 
 export class Pipeline {

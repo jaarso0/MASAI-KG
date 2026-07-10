@@ -10,7 +10,7 @@ import { startServer } from './serve.js';
 export { Pipeline } from './pipeline.js';
 export { JsonSemanticModelStorage } from './storage/semantic-model-storage.js';
 export * from './semantic-model/types.js';
-export { KnowledgeGraph } from './stage5-graph/graph.js';
+export { KnowledgeGraph } from './graph/graph.js';
 export { startServer } from './serve.js';
 export { RetrievalEngine } from './retrieval/api.js';
 export * from './retrieval/types.js';
@@ -109,9 +109,9 @@ async function runCLI() {
 
 // Run CLI if this file is executed directly
 const currentFilePath = path.resolve(process.argv[1] || '');
-const isExecutedDirectly = 
-  currentFilePath.endsWith('index.ts') || 
-  currentFilePath.endsWith('index.js') || 
+const isExecutedDirectly =
+  currentFilePath.endsWith('index.ts') ||
+  currentFilePath.endsWith('index.js') ||
   currentFilePath.endsWith('index.mjs');
 
 if (isExecutedDirectly) {

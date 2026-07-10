@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { KnowledgeGraph, KGNode } from '../stage5-graph/graph.js';
+import { KnowledgeGraph, KGNode } from '../graph/graph.js';
 import { RegionResult, PathResult, ImpactResult, StructuralNode } from '../executor/result-types.js';
 import { MaterializedEvidence, MaterializedNode, MaterializedEdge } from './types.js';
 import { GraphQueryPlan } from '../mcp/types.js';
@@ -56,7 +56,7 @@ export class EvidenceMaterializer {
       const pathRes = structuralResult as PathResult;
       const allPathNodeIds = new Set<string>();
       const anchorNodeIds = new Set<string>();
-      
+
       if (plan.anchors && plan.anchors.length >= 2) {
         // Resolve anchors if possible
         // We'll mark the first and last node of any path as anchors
@@ -225,7 +225,7 @@ export class EvidenceMaterializer {
             // Find occurrence of callee name inside caller's scope range
             const nameWord = calleeNode.name;
             const regex = new RegExp(`\\b${nameWord}\\b`);
-            
+
             let foundLine = -1;
             for (let l = callerRange.start.line; l <= callerRange.end.line; l++) {
               if (l < callerLines.length) {
@@ -310,7 +310,7 @@ export class EvidenceMaterializer {
 
     while (idx >= 0 && commentLines.length < 6) {
       const line = lines[idx].trim();
-      
+
       // Stop on empty line if we have comments already
       if (!line) {
         if (commentLines.length > 0) break;

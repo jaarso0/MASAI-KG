@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Pipeline } from './pipeline.js';
 import { JsonSemanticModelStorage } from './storage/semantic-model-storage.js';
-import { KnowledgeGraph } from './stage5-graph/graph.js';
+import { KnowledgeGraph } from './graph/graph.js';
 
 const WATCH_IGNORE = new Set([
   'node_modules', 'dist', 'build', '.git', '.masai',
