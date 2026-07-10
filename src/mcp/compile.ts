@@ -7,6 +7,7 @@ import {
 } from './types.js';
 
 export function compileSearchSymbols(args: SearchSymbolsArgs): GraphQueryPlan {
+  const expand = args.expand !== false;
   return {
     operation: 'region',
     anchors: [
@@ -18,11 +19,16 @@ export function compileSearchSymbols(args: SearchSymbolsArgs): GraphQueryPlan {
     ],
     constraints: {
       direction: 'both',
-      requestedDepth: 0
+      // 0 when not expanding (bare candidate/anchor info only); otherwise a real
+      // neighborhood depth so a single unambiguous match doubles as an explore_region
+      // call — searchMode keeps ambiguous multi-match results returning the flat
+      // candidate list either way (see GraphQueryPlan.constraints.searchMode).
+      requestedDepth: expand ? (args.depth ?? 2) : 0,
+      searchMode: true
     },
     materialize: {
-      source: false,
-      callsites: false,
+      source: expand,
+      callsites: expand,
       signatures: true,
       docs: true
     }

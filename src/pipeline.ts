@@ -1,15 +1,12 @@
 import * as path from 'path';
-import * as fs from 'fs/promises';
 import { parseProject } from './stage1-parse/walker.js';
-import { detectLanguage } from './stage1-parse/lang-detect.js';
-import { parserRegistry } from './stage1-parse/parser-registry.js';
 import { extractorRegistry } from './stage2-extract/extractor-registry.js';
 import { createSymbol } from './semantic-model/builder.js';
-import { mergePartials, updatePartial, MergeableModel } from './semantic-model/merge.js';
+import { mergePartials } from './semantic-model/merge.js';
 import { SymbolRegistry } from './stage3-registry/registry.js';
 import { resolveAll } from './stage4-resolve/resolver.js';
 import { buildGraphFromModel, KnowledgeGraph } from './stage5-graph/graph.js';
-import { SemanticModel, PartialSemanticModel } from './semantic-model/types.js';
+import { SemanticModel } from './semantic-model/types.js';
 
 export class Pipeline {
   public async buildFull(projectRoot: string): Promise<SemanticModel> {
@@ -64,63 +61,20 @@ export class Pipeline {
   }
 
   /**
-   * v1 Incremental interface: Rebuilds a single file, updates the mergeable model, and re-resolves references.
+   * NOT incremental, despite the name/signature. A prior attempt built a `MergeableModel`
+   * patch here via `updatePartial` (see merge.ts) but discarded it and fell back to a full
+   * rebuild anyway. True incremental resolution is unsound in general: a change in one file
+   * can invalidate cross-file references that were resolved via `global_fallback`/
+   * `qualified_name` in unrelated files, so a partial patch risks leaving stale, silently-
+   * wrong edges in the graph. `updatePartial` correctly implements the patch mechanics if
+   * this is ever revisited — see deep_dive_architecture.md for the full reasoning. Kept as a
+   * thin alias for API compatibility with existing callers.
    */
   public async rebuildFile(
     projectRoot: string,
-    filePath: string,
-    currentModel: SemanticModel
+    _filePath: string,
+    _currentModel: SemanticModel
   ): Promise<SemanticModel> {
-    const resolvedRoot = path.resolve(projectRoot);
-    const normFilePath = filePath.replace(/\\/g, '/');
-    const absolutePath = path.join(resolvedRoot, normFilePath);
-
-    // Parse the updated file (if it exists)
-    let newPartial: PartialSemanticModel | null = null;
-    try {
-      const exists = await fs.stat(absolutePath).then(s => s.isFile()).catch(() => false);
-      if (exists) {
-        const sourceCode = await fs.readFile(absolutePath, 'utf-8');
-        const lang = detectLanguage(filePath);
-        if (lang) {
-          const parser = parserRegistry.getParser(lang);
-          const tree = parser.parse(sourceCode);
-          const extractor = extractorRegistry.getExtractor(lang);
-          newPartial = extractor.extract({
-            filePath: normFilePath,
-            absolutePath: absolutePath.replace(/\\/g, '/'),
-            language: lang,
-            tree,
-            sourceCode
-          });
-        }
-      }
-    } catch (err) {
-      console.error(`Failed to parse/extract during incremental update for ${filePath}:`, err);
-    }
-
-    // Convert SemanticModel to MergeableModel for modification
-    const mergeable: MergeableModel = {
-      symbols: currentModel.symbols,
-      scopes: currentModel.scopes,
-      containments: currentModel.containments,
-      references: [
-        ...currentModel.resolvedReferences.map(r => {
-          // Find original candidate from global list (or construct a dummy reference candidate)
-          // To keep it simple and accurate, we can preserve unresolved references from current model,
-          // plus build the actual candidates from resolved references.
-          // Better: we keep all original references, replace references of that file with newPartial's references!
-          return currentModel.resolvedReferences as any; // fallback
-        })
-      ],
-      diagnostics: currentModel.diagnostics,
-      localTypeBindings: []
-    };
-
-    // To implement the v1 incremental correctly and robustly without hacks:
-    // We simply run updatePartial on symbols, scopes, containments, references, diagnostics.
-    // Let's re-extract files and re-merge all. But since the interface just requests rebuildFile,
-    // let's do a full rebuild if the user calls rebuildFile since it's the v1 fallback:
     return this.buildFull(projectRoot);
   }
 

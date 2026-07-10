@@ -17,6 +17,8 @@ export interface MaterializedNode {
   docs?: string;
   structuralRole: 'anchor' | 'path' | 'direct_neighbor' | 'transitive_neighbor' | 'impacted';
   unresolvedRefs?: { rawName: string; kind: string }[];
+  /** undefined = not a testable kind (file/variable/etc); true/false = whether any test file references it */
+  hasCoveringTests?: boolean;
 }
 
 export interface MaterializedEdge {

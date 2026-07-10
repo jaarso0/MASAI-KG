@@ -52,6 +52,9 @@ export function validateGraphQueryPlan(plan: any): { valid: boolean; errors: str
       if (c.requestedPaths !== undefined && (typeof c.requestedPaths !== 'number' || c.requestedPaths < 0)) {
         errors.push('constraints.requestedPaths must be a non-negative number');
       }
+      if (c.searchMode !== undefined && typeof c.searchMode !== 'boolean') {
+        errors.push('constraints.searchMode must be a boolean');
+      }
     }
   }
 

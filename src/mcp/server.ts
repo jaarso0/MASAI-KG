@@ -188,12 +188,14 @@ export class MCPServer {
     return [
       {
         name: 'search_symbols',
-        description: 'Resolve and search for symbols in the codebase graph by name or kind.',
+        description: 'Resolve and search for symbols in the codebase graph by name or kind. When the query resolves to exactly one symbol, also returns its neighborhood (source, callsites, relationships) in the same call — set expand:false to get bare candidate info only, like a plain lookup.',
         inputSchema: {
           type: 'object',
           properties: {
             query: { type: 'string', description: 'Name, qualified name, or substring of symbol to search for' },
-            kind: { type: 'string', description: 'Optional filtering kind (e.g. class, function, method)' }
+            kind: { type: 'string', description: 'Optional filtering kind (e.g. class, function, method)' },
+            expand: { type: 'boolean', description: 'Explore the neighborhood when there is a single unambiguous match (default: true)' },
+            depth: { type: 'number', description: 'Neighborhood depth used when expand is true and there is a single match (default: 2)' }
           },
           required: ['query']
         }

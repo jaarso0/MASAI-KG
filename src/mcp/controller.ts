@@ -76,7 +76,7 @@ export class RequestController {
     }
 
     if (resolution.status === 'ambiguous') {
-      const isSearch = plan.operation === 'region' && plan.constraints?.requestedDepth === 0;
+      const isSearch = plan.operation === 'region' && plan.constraints?.searchMode === true;
       if (isSearch) {
         const candidates = resolution.ambiguousAnchors.flatMap(a => a.candidates);
         return {
