@@ -1,4 +1,4 @@
-import { KnowledgeGraph, KGNode } from '../stage5-graph/graph.js';
+import { KnowledgeGraph, KGNode } from '../graph/graph.js';
 import { Symbol } from '../semantic-model/types.js';
 import { RetrievalIndexes } from './indexes.js';
 import { CandidateDiscovery } from './discovery.js';

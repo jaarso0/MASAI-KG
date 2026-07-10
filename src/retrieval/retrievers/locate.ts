@@ -1,5 +1,5 @@
 import { BaseRetriever } from './base.js';
-import { KGNode, KGEdge } from '../../stage5-graph/graph.js';
+import { KGNode, KGEdge } from '../../graph/graph.js';
 import { GraphExpander } from '../expander.js';
 
 export class LocateRetriever extends BaseRetriever {

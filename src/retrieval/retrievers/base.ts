@@ -1,5 +1,5 @@
 import { RetrievalIndexes } from '../indexes.js';
-import { KnowledgeGraph, KGNode, KGEdge } from '../../stage5-graph/graph.js';
+import { KnowledgeGraph, KGNode, KGEdge } from '../../graph/graph.js';
 
 export abstract class BaseRetriever {
   protected indexes: RetrievalIndexes;

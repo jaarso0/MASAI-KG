@@ -1,6 +1,6 @@
 import { RetrievalIndexes } from './indexes.js';
 import { CandidateResult } from './types.js';
-import { KGNode } from '../stage5-graph/graph.js';
+import { KGNode } from '../graph/graph.js';
 
 export class CandidateDiscovery {
   private indexes: RetrievalIndexes;

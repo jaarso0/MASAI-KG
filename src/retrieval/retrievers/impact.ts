@@ -1,5 +1,5 @@
 import { BaseRetriever } from './base.js';
-import { KGNode, KGEdge } from '../../stage5-graph/graph.js';
+import { KGNode, KGEdge } from '../../graph/graph.js';
 
 export class ImpactRetriever extends BaseRetriever {
   public retrieve(candidates: KGNode[], taskQuery: string): { nodes: KGNode[]; edges: KGEdge[] } {

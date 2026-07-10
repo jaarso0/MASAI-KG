@@ -1,4 +1,4 @@
-import { KnowledgeGraph, KGNode, KGEdge } from '../stage5-graph/graph.js';
+import { KnowledgeGraph, KGNode, KGEdge } from '../graph/graph.js';
 import { Symbol } from '../semantic-model/types.js';
 
 export class RetrievalIndexes {

@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import { KGNode, KGEdge } from '../stage5-graph/graph.js';
+import { KGNode, KGEdge } from '../graph/graph.js';
 import { ContextPackage, CodeSnippet, ExecutionFlowStep, RetrievalStrategy } from './types.js';
 
 export class ContextBuilder {

@@ -1,4 +1,4 @@
-import { KGNode, KGEdge, KGEdgeKind } from '../stage5-graph/graph.js';
+import { KGNode, KGEdge, KGEdgeKind } from '../graph/graph.js';
 import { Range } from '../semantic-model/types.js';
 
 export type RetrievalStrategy = 'locate' | 'flow' | 'impact';

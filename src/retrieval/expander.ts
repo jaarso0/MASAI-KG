@@ -1,4 +1,4 @@
-import { KnowledgeGraph, KGNode, KGEdge, KGEdgeKind } from '../stage5-graph/graph.js';
+import { KnowledgeGraph, KGNode, KGEdge, KGEdgeKind } from '../graph/graph.js';
 import { ExpansionConfig } from './types.js';
 
 export class GraphExpander {
