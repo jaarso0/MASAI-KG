@@ -1,6 +1,6 @@
 import { MaterializedEvidence } from '../../evidence/types.js';
 import { RepresentationLevel } from '../budget-allocator.js';
-import { getDisplayName, serializeNavigationPackage } from './helper.js';
+import { getDisplayName, serializeNavigationPackage, formatResolutionConfidence, formatUnresolvedRefs } from './helper.js';
 
 export function serializeImpact(
   evidence: MaterializedEvidence,
@@ -10,6 +10,12 @@ export function serializeImpact(
 ): string {
   const nodeMap = new Map(evidence.nodes.map(n => [n.nodeId, n]));
   const rootNode = nodeMap.get(rootId);
+  // Index edges by "source->kind" so each affected dependent can show how confidently
+  // the edge that pulled it in was resolved.
+  const resolutionByEdgeKey = new Map<string, string | undefined>();
+  evidence.edges.forEach(e => {
+    resolutionByEdgeKey.set(`${e.source}:${e.kind}`, e.resolutionMethod);
+  });
 
   let output = '=== DEPENDENCY IMPACT CONE ===\n\n';
 
@@ -20,6 +26,7 @@ export function serializeImpact(
     output += `File: ${rootNode.file}\n`;
     if (rootNode.signature) output += `Signature: ${rootNode.signature}\n`;
     if (rootNode.docs) output += `Docs:\n${rootNode.docs.split('\n').map(l => '  ' + l).join('\n')}\n`;
+    output += formatUnresolvedRefs(rootNode);
   } else {
     output += `Changed Symbol ID: ${rootId}\n`;
   }
@@ -49,8 +56,10 @@ export function serializeImpact(
       const node = nodeMap.get(item.nodeId);
       if (node) {
         const displayName = getDisplayName(node, item.nodeId);
-        output += `- ${displayName} (${node.kind}) [via: ${item.via}]\n`;
+        const resolutionMethod = resolutionByEdgeKey.get(`${item.nodeId}:${item.via}`);
+        output += `- ${displayName} (${node.kind}) [via: ${item.via}]${formatResolutionConfidence(resolutionMethod)}\n`;
         output += `  File: ${node.file}\n`;
+        output += formatUnresolvedRefs(node);
       } else {
         output += `- [ID: ${item.nodeId}] [via: ${item.via}]\n`;
       }

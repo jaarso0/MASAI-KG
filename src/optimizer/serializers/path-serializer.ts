@@ -1,6 +1,6 @@
 import { MaterializedEvidence, MaterializedNode, MaterializedEdge } from '../../evidence/types.js';
 import { RepresentationLevel } from '../budget-allocator.js';
-import { getDisplayName, serializeNavigationPackage } from './helper.js';
+import { getDisplayName, serializeNavigationPackage, formatResolutionConfidence, formatUnresolvedRefs } from './helper.js';
 
 export function serializePath(
   evidence: MaterializedEvidence,
@@ -38,6 +38,8 @@ export function serializePath(
         if (node.signature && lvl !== 'OMIT') {
           output += `    Signature: ${node.signature}\n`;
         }
+        const unresolvedNote = formatUnresolvedRefs(node);
+        if (unresolvedNote) output += '  ' + unresolvedNote;
       }
 
       // Print relationship with callsites
@@ -55,7 +57,7 @@ export function serializePath(
 
         output += `         ↓\n`;
         if (edge) {
-          output += `         [${edge.kind.toUpperCase()}]`;
+          output += `         [${edge.kind.toUpperCase()}]${formatResolutionConfidence(edge.resolutionMethod)}`;
           if (edge.callsite) {
             output += ` at ${edge.callsite.file}:${edge.callsite.line} -> "${edge.callsite.snippet}"`;
           }

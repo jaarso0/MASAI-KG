@@ -1,6 +1,6 @@
 import { MaterializedEvidence } from '../../evidence/types.js';
 import { RepresentationLevel } from '../budget-allocator.js';
-import { getDisplayName, serializeNavigationPackage } from './helper.js';
+import { getDisplayName, serializeNavigationPackage, formatResolutionConfidence, formatUnresolvedRefs } from './helper.js';
 
 export function serializeRegion(
   evidence: MaterializedEvidence,
@@ -21,6 +21,7 @@ export function serializeRegion(
       output += `  File: ${node.file}\n`;
       if (node.signature) output += `  Signature: ${node.signature}\n`;
       if (node.docs) output += `  Docs:\n${node.docs.split('\n').map(l => '    ' + l).join('\n')}\n`;
+      output += formatUnresolvedRefs(node);
     } else {
       output += `- [Unresolved Anchor ID: ${rootId}]\n`;
     }
@@ -41,7 +42,7 @@ export function serializeRegion(
     if (printedEdges.has(edgeKey)) return;
     printedEdges.add(edgeKey);
 
-    output += `- ${srcName} --[${edge.kind}]--> ${tgtName}\n`;
+    output += `- ${srcName} --[${edge.kind}]--> ${tgtName}${formatResolutionConfidence(edge.resolutionMethod)}\n`;
     if (edge.callsite) {
       output += `  Callsite: ${edge.callsite.file}:${edge.callsite.line} -> "${edge.callsite.snippet}"\n`;
     }

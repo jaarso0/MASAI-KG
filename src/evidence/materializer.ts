@@ -145,7 +145,8 @@ export class EvidenceMaterializer {
             kind: n.kind,
             file: n.filePath,
             range: rangeInfo,
-            structuralRole: nodeRoleMap.get(n.nodeId) || 'direct_neighbor'
+            structuralRole: nodeRoleMap.get(n.nodeId) || 'direct_neighbor',
+            unresolvedRefs: this.graph.getUnresolvedReferences(n.nodeId)
           });
         }
         continue;
@@ -196,7 +197,8 @@ export class EvidenceMaterializer {
             text: sourceText
           } : undefined,
           docs: docs || undefined,
-          structuralRole: nodeRoleMap.get(n.nodeId) || 'direct_neighbor'
+          structuralRole: nodeRoleMap.get(n.nodeId) || 'direct_neighbor',
+          unresolvedRefs: this.graph.getUnresolvedReferences(n.nodeId)
         });
       }
     }
@@ -257,7 +259,8 @@ export class EvidenceMaterializer {
         source: edge.sourceId,
         target: edge.targetId,
         kind: edge.kind,
-        callsite: callsiteInfo
+        callsite: callsiteInfo,
+        resolutionMethod: (edge as any).properties?.resolutionMethod ?? (edge as any).resolutionMethod
       });
     }
 

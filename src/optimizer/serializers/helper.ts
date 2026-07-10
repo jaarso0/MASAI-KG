@@ -7,6 +7,27 @@ export function getDisplayName(node: any, fallbackId: string): string {
 }
 
 /**
+ * Renders a suffix flagging how confidently an edge was resolved.
+ * `global_fallback` is the resolver's last-resort, name-only match — it can
+ * silently point at the wrong symbol, so it's called out distinctly from the
+ * higher-confidence methods (import/scope/qualified_name).
+ */
+export function formatResolutionConfidence(resolutionMethod?: string): string {
+  if (!resolutionMethod) return '';
+  if (resolutionMethod === 'global_fallback') {
+    return ' [⚠ low-confidence: name-only match]';
+  }
+  return ` [resolved-via: ${resolutionMethod}]`;
+}
+
+export function formatUnresolvedRefs(node: MaterializedNode): string {
+  if (!node.unresolvedRefs || node.unresolvedRefs.length === 0) return '';
+  const names = node.unresolvedRefs.slice(0, 5).map(r => r.rawName).join(', ');
+  const more = node.unresolvedRefs.length > 5 ? ` (+${node.unresolvedRefs.length - 5} more)` : '';
+  return `  ⚠ ${node.unresolvedRefs.length} unresolved reference(s) from here: ${names}${more}\n`;
+}
+
+/**
  * Serializes target nodes into a clean "Navigation Package" recommended reading index.
  * Groups by file path, sorts chronologically by line number, and details roles/kinds.
  */

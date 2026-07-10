@@ -16,6 +16,7 @@ export interface MaterializedNode {
   };
   docs?: string;
   structuralRole: 'anchor' | 'path' | 'direct_neighbor' | 'transitive_neighbor' | 'impacted';
+  unresolvedRefs?: { rawName: string; kind: string }[];
 }
 
 export interface MaterializedEdge {
@@ -27,6 +28,7 @@ export interface MaterializedEdge {
     line: number;
     snippet: string;
   };
+  resolutionMethod?: string;
 }
 
 export interface MaterializedEvidence {
