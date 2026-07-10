@@ -21,6 +21,11 @@ export class MCPServer {
     this.controller = new RequestController(graph, projectRoot);
   }
 
+  public updateGraph(graph: KnowledgeGraph): void {
+    this.graph = graph;
+    this.controller = new RequestController(graph, this.projectRoot);
+  }
+
   public start(): void {
     console.error('MASAI-KG MCP Server starting on stdio...');
 

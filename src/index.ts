@@ -49,6 +49,12 @@ async function runCLI() {
       const { MCPServer } = await import('./mcp/server.js');
       const mcpServer = new MCPServer(graph, targetDir);
       mcpServer.start();
+
+      const { watchAndRebuild } = await import('./watcher.js');
+      const watcher = watchAndRebuild(targetDir, (newGraph) => {
+        mcpServer.updateGraph(newGraph);
+      });
+      process.on('exit', () => watcher.close());
     } catch (err: any) {
       console.error(`\n❌ Error starting MCP server:`, err.message || err);
       process.exit(1);
