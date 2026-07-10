@@ -30,6 +30,11 @@ export function formatUnresolvedRefs(node: MaterializedNode): string {
 /**
  * Serializes target nodes into a clean "Navigation Package" recommended reading index.
  * Groups by file path, sorts chronologically by line number, and details roles/kinds.
+ *
+ * Nodes allocated SNIPPET/FULL representation by the budget allocator get their actual
+ * source inlined here (already fetched and span-merged by the optimizer) — the agent
+ * doesn't need a follow-up Read for those. SIGNATURE-level nodes still just get a
+ * line-range pointer, since their source wasn't fetched/budgeted for inclusion.
  */
 export function serializeNavigationPackage(
   nodes: MaterializedNode[],
@@ -68,10 +73,14 @@ export function serializeNavigationPackage(
       return startA - startB;
     });
 
+    // Avoid printing the same merged source span twice for nodes that collapsed together
+    const printedSpans = new Set<string>();
+
     fileNodes.forEach(node => {
       const dispName = getDisplayName(node, node.nodeId);
       const role = node.structuralRole;
       const rangeStr = node.range ? `${node.range.startLine}-${node.range.endLine}` : '';
+      const lvl = levels.get(node.nodeId) || 'SIGNATURE';
 
       const parts: string[] = [];
       parts.push(dispName);
@@ -86,6 +95,18 @@ export function serializeNavigationPackage(
         output += `  - Lines ${rangeStr}: ${infoStr}\n`;
       } else {
         output += `  - ${infoStr}\n`;
+      }
+
+      if ((lvl === 'SNIPPET' || lvl === 'FULL') && node.source) {
+        const spanKey = `${node.source.startLine}-${node.source.endLine}`;
+        if (!printedSpans.has(spanKey)) {
+          printedSpans.add(spanKey);
+          const text = lvl === 'SNIPPET' ? node.source.text.slice(0, 800) : node.source.text;
+          const truncatedNote = lvl === 'SNIPPET' && node.source.text.length > 800 ? ' … (truncated)' : '';
+          output += '    ```\n';
+          output += text.split('\n').map(l => '    ' + l).join('\n');
+          output += truncatedNote + '\n    ```\n';
+        }
       }
     });
     output += '\n';
