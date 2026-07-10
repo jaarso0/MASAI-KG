@@ -5,7 +5,7 @@ import {
   Symbol,
   Containment
 } from '../semantic-model/types.js';
-import { SymbolRegistry } from '../stage3-registry/registry.js';
+import { SymbolRegistry } from '../registry/registry.js';
 import { ImportResolver } from './import-resolver.js';
 import { ScopeResolver } from './scope-resolver.js';
 import { createDiagnostic } from '../semantic-model/builder.js';
@@ -37,7 +37,7 @@ export function resolveAll(
   const importCandidates = references.filter(r => r.kind === 'import');
   for (const cand of importCandidates) {
     const resolvedSym = importResolver.resolveImport(cand);
-    
+
     if (resolvedSym) {
       // Record resolved reference
       resolved.push({
@@ -98,7 +98,7 @@ export function resolveAll(
       });
     } else {
       unresolved.push(cand);
-      
+
       // Only emit warnings for unresolvable references (excluding common native symbols like console or print)
       const isNativeSymbol = ['console', 'print', 'len', 'range', 'str', 'int', 'dict', 'list', 'set', 'true', 'false'].includes(cand.rawName.toLowerCase());
       if (!isNativeSymbol) {

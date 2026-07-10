@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { createSymbol, createContainment } from '../src/semantic-model/builder.js';
-import { buildGraphFromModel, KnowledgeGraph } from '../src/stage5-graph/graph.js';
+import { buildGraphFromModel, KnowledgeGraph } from '../src/graph/graph.js';
 import { SemanticModel } from '../src/semantic-model/types.js';
 import { validateGraphQueryPlan } from '../src/mcp/schemas.js';
 import {
@@ -291,7 +291,7 @@ class CheckoutController {
 
     const evidence = await materializer.materialize(resPath, plan);
     expect(evidence.nodes.length).toBe(2);
-    
+
     const runCheckoutNode = evidence.nodes.find(n => n.name === 'runCheckout')!;
     expect(runCheckoutNode.source).toBeDefined();
     expect(runCheckoutNode.source?.text).toContain('public runCheckout(req: any)');

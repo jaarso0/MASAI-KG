@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { ReferenceCandidate, Symbol } from '../semantic-model/types.js';
-import { SymbolRegistry } from '../stage3-registry/registry.js';
+import { SymbolRegistry } from '../registry/registry.js';
 
 /**
  * Resolves reference candidates of kind 'import' to their corresponding target symbols.
@@ -41,7 +41,7 @@ export class ImportResolver {
     if (!this.isInternalPath(importPath)) {
       const lookupName = (candidate.metadata?.importedName as string) || rawName;
       const extSymbolId = `external::${importPath.replace(/\\/g, '/')}::${lookupName}`;
-      
+
       let extSymbol = this.registry.byId.lookup(extSymbolId);
       if (!extSymbol) {
         extSymbol = {
@@ -141,7 +141,7 @@ export class ImportResolver {
 
       // Find the imported symbol in that file
       const fileSymbols = this.registry.byFile.lookup(targetFileSymbol.filePath);
-      
+
       // Match by name or qualifiedName
       const match = fileSymbols.find(
         s => s.kind !== 'file' && s.exported && (s.name === lookupName || s.qualifiedName === lookupName)
@@ -157,7 +157,7 @@ export class ImportResolver {
     // Try a global lookup of the name among exported symbols if path-based resolution fails
     const globalMatches = this.registry.byName.lookup(lookupName);
     const category = this.getLanguageCategory(filePath);
-    const exportedMatch = globalMatches.find(s => 
+    const exportedMatch = globalMatches.find(s =>
       s.kind !== 'file' && s.exported && this.getLanguageCategory(s.filePath) === category
     );
     if (exportedMatch) return exportedMatch;
@@ -211,7 +211,7 @@ export class ImportResolver {
     if (targetFileSymbol) {
       // Find the imported symbol in that file
       const fileSymbols = this.registry.byFile.lookup(targetFileSymbol.filePath);
-      
+
       const match = fileSymbols.find(
         s => s.kind !== 'file' && s.exported && (s.name === lookupName || s.qualifiedName === lookupName)
       );
@@ -221,7 +221,7 @@ export class ImportResolver {
     // Fallback: look up globally by name
     const globalMatches = this.registry.byName.lookup(lookupName);
     const category = this.getLanguageCategory(filePath);
-    const exportedMatch = globalMatches.find(s => 
+    const exportedMatch = globalMatches.find(s =>
       s.kind !== 'file' && s.exported && this.getLanguageCategory(s.filePath) === category
     );
     if (exportedMatch) return exportedMatch;
@@ -261,7 +261,7 @@ export class ImportResolver {
     // Fallback: look up globally by name
     const globalMatches = this.registry.byName.lookup(lookupName);
     const category = this.getLanguageCategory(filePath);
-    const exportedMatch = globalMatches.find(s => 
+    const exportedMatch = globalMatches.find(s =>
       s.kind !== 'file' && s.exported && this.getLanguageCategory(s.filePath) === category
     );
     if (exportedMatch) return exportedMatch;

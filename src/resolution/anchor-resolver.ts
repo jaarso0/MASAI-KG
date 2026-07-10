@@ -1,4 +1,4 @@
-import { KnowledgeGraph, KGNode } from '../stage5-graph/graph.js';
+import { KnowledgeGraph, KGNode } from '../graph/graph.js';
 import { CandidateDiscovery } from '../retrieval/discovery.js';
 import { RetrievalIndexes } from '../retrieval/indexes.js';
 import { AnchorSpec } from '../mcp/types.js';
@@ -40,7 +40,7 @@ export class AnchorResolver {
     // 2. Case-insensitive Qualified Name Match
     if (resolutionMode === 'exact' || resolutionMode === 'auto') {
       const lowerQuery = query.toLowerCase();
-      const qnameMatches = this.graph.getAllNodes().filter(n => 
+      const qnameMatches = this.graph.getAllNodes().filter(n =>
         n.qualifiedName.toLowerCase() === lowerQuery &&
         (!kindFilter || n.kind === kindFilter)
       );
@@ -63,7 +63,7 @@ export class AnchorResolver {
     // 3. Case-insensitive Symbol Name Match
     if (resolutionMode === 'exact' || resolutionMode === 'auto') {
       const lowerQuery = query.toLowerCase();
-      const nameMatches = this.graph.getAllNodes().filter(n => 
+      const nameMatches = this.graph.getAllNodes().filter(n =>
         n.name.toLowerCase() === lowerQuery &&
         (!kindFilter || n.kind === kindFilter)
       );

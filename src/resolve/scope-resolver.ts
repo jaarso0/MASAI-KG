@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { ReferenceCandidate, Symbol, Scope, Containment } from '../semantic-model/types.js';
-import { SymbolRegistry } from '../stage3-registry/registry.js';
-import { isRangeContained } from '../stage3-registry/registry.js';
+import { SymbolRegistry } from '../registry/registry.js';
+import { isRangeContained } from '../registry/registry.js';
 
 export class ScopeResolver {
   private registry: SymbolRegistry;
@@ -22,7 +22,7 @@ export class ScopeResolver {
     // Find all scopes in the file
     const fileSymbols = this.registry.byFile.lookup(filePath);
     const fileScopes: Scope[] = [];
-    
+
     // We walk through all scopes to find containing ones
     // Note: SymbolRegistry holds rawScopes internally, but we can also query ScopeIndex or scan raw scopes.
     // Let's find the innermost containing scope from ScopeIndex or by checking all scopes in the registry.
@@ -31,7 +31,7 @@ export class ScopeResolver {
     let currentScope = innermostScope;
     while (currentScope) {
       const scopeSymbols = this.registry.byScope.getSymbolsInScope(currentScope.id);
-      
+
       // Look for a symbol declared in this scope matching the first chain element
       const matchedBase = scopeSymbols.find(s => s.name === nameToLookUp);
       if (matchedBase) {
@@ -102,7 +102,7 @@ export class ScopeResolver {
     // Prefer non-file, non-project symbols first
     const cleanMatches = nameMatches.filter(s => s.kind !== 'file' && s.kind !== 'project');
     const bestMatch = cleanMatches[0] || nameMatches[0];
-    
+
     if (bestMatch) {
       if (qualifierChain.length > 1) {
         const resolvedMember = this.resolveChain(bestMatch, qualifierChain, 1);
