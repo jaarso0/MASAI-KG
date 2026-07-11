@@ -36,15 +36,14 @@ async function runCLI() {
     try {
       const storage = new JsonSemanticModelStorage();
       const pipeline = new Pipeline();
-      let model;
-      try {
-        model = await storage.load(targetDir);
-        console.error(`Loaded existing semantic model from .masai/semantic-model.json`);
-      } catch {
-        console.error(`No existing semantic model found. Performing full build...`);
-        model = await pipeline.buildFull(targetDir);
-        await storage.save(model, targetDir);
-      }
+      // Always rebuild on startup rather than trusting the cached model file. Loading a
+      // cached model meant a restarted server could inherit a stale index — including one
+      // another (older-code) instance had clobbered onto disk — so restarts didn't reliably
+      // pick up code/source changes. A full build is a few seconds for typical repos and
+      // guarantees the served graph matches the current code and current source.
+      console.error(`Building semantic model for ${targetDir} on startup...`);
+      const model = await pipeline.buildFull(targetDir);
+      await storage.save(model, targetDir);
       const graph = pipeline.deriveGraph(model);
       const { MCPServer } = await import('./mcp/server.js');
       const mcpServer = new MCPServer(graph, targetDir);
