@@ -234,5 +234,45 @@ class UserService:
     expect(scriptRef).toBeDefined();
     expect(scriptRef?.kind).toBe('import');
   });
+
+  test('Extracts JSX component-render references from TSX (and ignores host/HTML tags)', () => {
+    const source = `
+import { LegendSection } from './Legend';
+
+function Dashboard() {
+  return (
+    <div className="wrap">
+      <LegendSection title="x" />
+      <span>plain host element</span>
+      <Panel.Header />
+    </div>
+  );
+}
+`;
+    const parser = parserRegistry.getParser('tsx');
+    const tree = parser.parse(source);
+    const extractor = extractorRegistry.getExtractor('tsx');
+    const partialModel = extractor.extract({
+      filePath: 'src/Dashboard.tsx',
+      absolutePath: 'src/Dashboard.tsx',
+      language: 'tsx',
+      tree,
+      sourceCode: source
+    });
+
+    const renders = partialModel.references.filter(r => r.kind === 'renders');
+    const renderedNames = renders.map(r => r.rawName).sort();
+
+    // Capitalized component <LegendSection> and member-expression <Panel.Header> captured;
+    // lowercase host elements <div>/<span> are NOT.
+    expect(renderedNames).toContain('LegendSection');
+    expect(renders.some(r => r.qualifierChain.join('.') === 'Panel.Header')).toBe(true);
+    expect(renderedNames).not.toContain('div');
+    expect(renderedNames).not.toContain('span');
+
+    // The render reference originates from the enclosing Dashboard component.
+    const legendRef = renders.find(r => r.rawName === 'LegendSection');
+    expect(legendRef?.fromSymbolId).toBe('src/Dashboard.tsx::Dashboard');
+  });
 });
 

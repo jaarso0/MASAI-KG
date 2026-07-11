@@ -45,5 +45,11 @@ export const JAVASCRIPT_QUERIES = `
     (member_expression)
   ] @name) @inherit
 
+(jsx_opening_element
+  name: (_) @name) @renders
+
+(jsx_self_closing_element
+  name: (_) @name) @renders
+
 (ERROR) @error
 `;

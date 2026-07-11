@@ -100,7 +100,8 @@ export type ReferenceKind =
   | 'inherit'
   | 'implement'
   | 'type_use'
-  | 'instantiate';
+  | 'instantiate'
+  | 'renders';       // JSX: a component renders another component (<Child /> in its markup)
 
 // Output of Stage 2 (extraction) — we know WHAT was referenced, not WHERE it points
 export interface ReferenceCandidate {

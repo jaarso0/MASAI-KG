@@ -455,7 +455,17 @@ export function normalizeCaptures(
         scopes.push(newScope);
         tracker.enterSymbol(sym);
       }
-    } else if (tag === 'call' || tag === 'new' || tag === 'import' || tag === 'inherit' || tag === 'implement' || tag === 'type_use') {
+    } else if (tag === 'call' || tag === 'new' || tag === 'import' || tag === 'inherit' || tag === 'implement' || tag === 'type_use' || tag === 'renders') {
+      // JSX renders: skip host/HTML elements (`<div>`, `<span>`) — only Capitalized names
+      // (or member expressions like `<Foo.Bar>`) are component references worth linking.
+      if (tag === 'renders') {
+        const isMemberExpr = getQualifierChain(nameNode).length > 1;
+        const firstChar = nameNode.text[0] || '';
+        if (!isMemberExpr && firstChar === firstChar.toLowerCase()) {
+          continue;
+        }
+      }
+
       const fromSym = tracker.currentParentSymbol ?? fileSymbol;
       const refKindMap: Record<string, ReferenceKind> = {
         call: 'call',
@@ -463,7 +473,8 @@ export function normalizeCaptures(
         import: 'import',
         inherit: 'inherit',
         implement: 'implement',
-        type_use: 'type_use'
+        type_use: 'type_use',
+        renders: 'renders'
       };
 
       const refKind = refKindMap[tag];

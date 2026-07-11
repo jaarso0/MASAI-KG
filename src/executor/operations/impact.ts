@@ -21,7 +21,7 @@ export function executeImpact(
   let queue = [anchor];
 
   // Define reference kinds that represent actual code usages/dependencies
-  const referenceKinds = ['call', 'import', 'inherit', 'implement', 'type_use', 'instantiate'];
+  const referenceKinds = ['call', 'import', 'inherit', 'implement', 'type_use', 'instantiate', 'renders'];
 
   for (let depth = 1; depth <= maxDepth; depth++) {
     if (queue.length === 0 || affected.length >= maxNodes) break;

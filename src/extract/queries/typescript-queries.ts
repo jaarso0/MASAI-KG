@@ -66,3 +66,18 @@ export const TYPESCRIPT_QUERIES = `
 
 (ERROR) @error
 `;
+
+// JSX element rendering, e.g. `<LegendSection />` or `<Foo.Bar>`. Captures the component
+// name so a "renders" reference edge links the enclosing component to the one it renders.
+// Only valid against JSX-aware grammars (tsx / javascript) — NOT the plain typescript
+// grammar, which has no JSX node types, so this lives in its own fragment.
+export const JSX_QUERIES = `
+(jsx_opening_element
+  name: (_) @name) @renders
+
+(jsx_self_closing_element
+  name: (_) @name) @renders
+`;
+
+// tsx files use the TSX grammar (supports JSX); plain .ts files must NOT get JSX patterns.
+export const TSX_QUERIES = TYPESCRIPT_QUERIES + '\n' + JSX_QUERIES;

@@ -127,7 +127,11 @@ export async function parseProject(projectRoot: string): Promise<ParsedFile[]> {
           try {
             const sourceCode = await fs.readFile(fullPath, 'utf-8');
             const parser = parserRegistry.getParser(lang);
-            const tree = parser.parse(sourceCode);
+            // tree-sitter's Node binding defaults to a ~32KB parse buffer and throws
+            // "Invalid argument" on larger inputs — silently dropping every file over
+            // that size from the graph. Size the buffer to the source (with headroom).
+            const bufferSize = Buffer.byteLength(sourceCode, 'utf8') + 4096;
+            const tree = parser.parse(sourceCode, undefined, { bufferSize });
             
             // Normalize path slashes to forward slashes for the semantic model
             const normRelative = relativePath.replace(/\\/g, '/');
