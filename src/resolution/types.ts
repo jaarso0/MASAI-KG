@@ -27,10 +27,19 @@ export type ResolutionResult =
       status: 'not_found';
       query: string;
     };
+export interface Disambiguation {
+  query: string;
+  chosen: ResolvedAnchor;
+  alternatives: AnchorCandidate[];
+}
+
 export type MultiAnchorResolutionResult =
   | {
       status: 'resolved';
       anchors: ResolvedAnchor[];
+      // Present when autoPick resolved one or more ambiguous queries to a best match.
+      // Lets the caller surface "I picked X; you also could have meant Y, Z" transparently.
+      disambiguations?: Disambiguation[];
     }
   | {
       status: 'ambiguous';
