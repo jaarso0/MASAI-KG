@@ -46,10 +46,10 @@ export class AnchorResolver {
     // 2. Case-insensitive Qualified Name Match
     if (resolutionMode === 'exact' || resolutionMode === 'auto') {
       const lowerQuery = query.toLowerCase();
-      const qnameMatches = this.graph.getAllNodes().filter(n =>
-        n.qualifiedName.toLowerCase() === lowerQuery &&
-        (!kindFilter || n.kind === kindFilter)
-      );
+      // Indexed O(1) lookup (byQualifiedName is keyed by lowercased qualified name)
+      // instead of an O(n) scan over every node in the graph on every resolve.
+      let qnameMatches = this.indexes.byQualifiedName.get(lowerQuery) || [];
+      if (kindFilter) qnameMatches = qnameMatches.filter(n => n.kind === kindFilter);
 
       if (qnameMatches.length === 1) {
         console.error(`-> Single Qualified Name match: ${qnameMatches[0].id}`);
@@ -69,10 +69,10 @@ export class AnchorResolver {
     // 3. Case-insensitive Symbol Name Match
     if (resolutionMode === 'exact' || resolutionMode === 'auto') {
       const lowerQuery = query.toLowerCase();
-      const nameMatches = this.graph.getAllNodes().filter(n =>
-        n.name.toLowerCase() === lowerQuery &&
-        (!kindFilter || n.kind === kindFilter)
-      );
+      // Indexed O(1) lookup (bySymbolName is keyed by lowercased name) instead of an
+      // O(n) scan over every node — this path runs on essentially every query.
+      let nameMatches = this.indexes.bySymbolName.get(lowerQuery) || [];
+      if (kindFilter) nameMatches = nameMatches.filter(n => n.kind === kindFilter);
 
       if (nameMatches.length === 1) {
         console.error(`-> Single Symbol Name match: ${nameMatches[0].id}`);
