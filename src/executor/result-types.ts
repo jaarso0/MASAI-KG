@@ -20,6 +20,8 @@ export interface RegionResult {
   nodes: StructuralNode[];
   edges: StructuralEdge[];
   distance: Record<string, number>;
+  /** Edges dropped by the proactive executor-level edge cap (before materialization). */
+  omittedEdgeCount?: number;
 }
 
 export interface PathResult {

@@ -9,9 +9,10 @@ export function executeRegion(
     edgeKinds?: string[];
     depth: number;
     nodeLimit: number;
+    edgeLimit: number;
   }
 ): RegionResult {
-  const { anchors, direction, edgeKinds, depth, nodeLimit } = options;
+  const { anchors, direction, edgeKinds, depth, nodeLimit, edgeLimit } = options;
 
   const distance: Record<string, number> = {};
   const visitedNodes = new Set<string>();
@@ -79,6 +80,23 @@ export function executeRegion(
     }
   }
 
+  // Proactively cap edges BEFORE they reach materialization (which does a per-edge
+  // callsite file-read for call/instantiate edges). A hub at depth:2/both can produce
+  // thousands of edges among its neighbors; without this, we'd pay to materialize all
+  // of them only for the serializer to show ~60. Rank by relevance so the ones we keep
+  // are the ones worth showing: edges touching an anchor first, then edges nearer the
+  // anchor (smaller max endpoint distance), then containment/kind as a mild tiebreak.
+  const anchorSet = new Set(anchors);
+  const edgePriority = (e: KGEdge): number => {
+    if (anchorSet.has(e.sourceId) || anchorSet.has(e.targetId)) return 0;
+    const ds = distance[e.sourceId] ?? Infinity;
+    const dt = distance[e.targetId] ?? Infinity;
+    return Math.max(ds, dt); // both endpoints close => higher priority (lower number)
+  };
+  const rankedEdges = [...resultEdges].sort((a, b) => edgePriority(a) - edgePriority(b));
+  const keptEdges = rankedEdges.slice(0, edgeLimit);
+  const omittedEdgeCount = resultEdges.length - keptEdges.length;
+
   // Map to structural types
   const nodes: StructuralNode[] = Array.from(resultNodesMap.values()).map(n => ({
     nodeId: n.id,
@@ -89,7 +107,7 @@ export function executeRegion(
     properties: n.properties
   }));
 
-  const edges: StructuralEdge[] = resultEdges.map(e => ({
+  const edges: StructuralEdge[] = keptEdges.map(e => ({
     sourceId: e.sourceId,
     targetId: e.targetId,
     kind: e.kind,
@@ -101,6 +119,7 @@ export function executeRegion(
     roots: anchors,
     nodes,
     edges,
-    distance
+    distance,
+    omittedEdgeCount
   };
 }

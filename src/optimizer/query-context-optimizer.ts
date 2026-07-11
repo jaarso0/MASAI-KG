@@ -97,7 +97,8 @@ export class QueryContextOptimizer {
     // 3. Serialize based on operation type
     let serializedContext = '';
     if (structuralResult.kind === 'region') {
-      serializedContext = serializeRegion(evidence, (structuralResult as RegionResult).roots, levels);
+      const region = structuralResult as RegionResult;
+      serializedContext = serializeRegion(evidence, region.roots, levels, region.omittedEdgeCount || 0);
     } else if (structuralResult.kind === 'path') {
       serializedContext = serializePath(evidence, (structuralResult as PathResult).paths, levels);
     } else if (structuralResult.kind === 'impact') {

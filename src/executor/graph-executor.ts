@@ -18,6 +18,7 @@ export class GraphExecutor {
       maxDepth: number;
       maxNodes: number;
       maxPaths: number;
+      maxEdges: number;
     }
   ): ExecutionResult {
     const operation = plan.operation;
@@ -28,7 +29,7 @@ export class GraphExecutor {
     const nodes = Math.min(constraints.requestedNodes !== undefined ? constraints.requestedNodes : 100, limits.maxNodes);
     const paths = Math.min(constraints.requestedPaths !== undefined ? constraints.requestedPaths : 10, limits.maxPaths);
 
-    console.error(`Executing operation "${operation}" with ${anchors.length} resolved anchors (depth limit: ${depth}, node limit: ${nodes})`);
+    console.error(`Executing operation "${operation}" with ${anchors.length} resolved anchors (depth limit: ${depth}, node limit: ${nodes}, edge limit: ${limits.maxEdges})`);
 
     switch (operation) {
       case 'region':
@@ -37,7 +38,8 @@ export class GraphExecutor {
           direction: constraints.direction || 'outgoing',
           edgeKinds: constraints.edgeKinds,
           depth,
-          nodeLimit: nodes
+          nodeLimit: nodes,
+          edgeLimit: limits.maxEdges
         });
 
       case 'path':

@@ -239,7 +239,7 @@ class CheckoutController {
       anchors: [],
       resolvedAnchors: ['checkout.ts::CheckoutController::runCheckout'],
       constraints: { direction: 'outgoing', requestedDepth: 2 }
-    }, { maxDepth: 6, maxNodes: 100, maxPaths: 10 });
+    }, { maxDepth: 6, maxNodes: 100, maxPaths: 10, maxEdges: 120 });
 
     expect(resRegion.kind).toBe('region');
     expect(resRegion.nodes.some(n => n.name === 'charge')).toBe(true);
@@ -249,7 +249,7 @@ class CheckoutController {
       operation: 'path',
       anchors: [],
       resolvedAnchors: ['checkout.ts::CheckoutController::runCheckout', 'payment.ts::PaymentProcessor::charge']
-    }, { maxDepth: 6, maxNodes: 100, maxPaths: 10 });
+    }, { maxDepth: 6, maxNodes: 100, maxPaths: 10, maxEdges: 120 });
 
     expect(resPath.kind).toBe('path');
     if (resPath.kind === 'path') {
@@ -263,12 +263,44 @@ class CheckoutController {
       operation: 'impact',
       anchors: [],
       resolvedAnchors: ['payment.ts::PaymentProcessor::charge']
-    }, { maxDepth: 6, maxNodes: 100, maxPaths: 10 });
+    }, { maxDepth: 6, maxNodes: 100, maxPaths: 10, maxEdges: 120 });
 
     expect(resImpact.kind).toBe('impact');
     if (resImpact.kind === 'impact') {
       // The dependent node should be runCheckout
       expect(resImpact.affected.some(a => a.nodeId === 'checkout.ts::CheckoutController::runCheckout')).toBe(true);
+    }
+  });
+
+  // 4b. Proactive edge cap: the executor bounds edges BEFORE materialization,
+  // keeps anchor-touching edges, and reports how many it dropped.
+  test('Region executor proactively caps edges and reports the omitted count', () => {
+    const executor = new GraphExecutor(graph);
+
+    const uncapped = executor.execute({
+      operation: 'region',
+      anchors: [],
+      resolvedAnchors: ['payment.ts::PaymentProcessor::charge'],
+      constraints: { direction: 'both', requestedDepth: 2 }
+    }, { maxDepth: 6, maxNodes: 100, maxPaths: 10, maxEdges: 1000 });
+
+    const capped = executor.execute({
+      operation: 'region',
+      anchors: [],
+      resolvedAnchors: ['payment.ts::PaymentProcessor::charge'],
+      constraints: { direction: 'both', requestedDepth: 2 }
+    }, { maxDepth: 6, maxNodes: 100, maxPaths: 10, maxEdges: 2 });
+
+    expect(capped.kind).toBe('region');
+    if (capped.kind === 'region' && uncapped.kind === 'region') {
+      // The cap is enforced...
+      expect(capped.edges.length).toBeLessThanOrEqual(2);
+      // ...and the drop is reported honestly rather than silently.
+      const droppedTotal = (uncapped.edges.length + (uncapped.omittedEdgeCount || 0));
+      expect((capped.omittedEdgeCount || 0)).toBe(droppedTotal - capped.edges.length);
+      // Kept edges are the relevant ones — every kept edge touches the anchor.
+      const anchor = 'payment.ts::PaymentProcessor::charge';
+      expect(capped.edges.every(e => e.sourceId === anchor || e.targetId === anchor)).toBe(true);
     }
   });
 
@@ -287,7 +319,7 @@ class CheckoutController {
       operation: 'path',
       anchors: [],
       resolvedAnchors: ['checkout.ts::CheckoutController::runCheckout', 'payment.ts::PaymentProcessor::charge']
-    }, { maxDepth: 6, maxNodes: 100, maxPaths: 10 });
+    }, { maxDepth: 6, maxNodes: 100, maxPaths: 10, maxEdges: 120 });
 
     const evidence = await materializer.materialize(resPath, plan);
     expect(evidence.nodes.length).toBe(2);

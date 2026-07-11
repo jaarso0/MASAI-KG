@@ -5,7 +5,8 @@ import { getDisplayName, serializeNavigationPackage, formatResolutionConfidence,
 export function serializeRegion(
   evidence: MaterializedEvidence,
   roots: string[],
-  levels: Map<string, RepresentationLevel>
+  levels: Map<string, RepresentationLevel>,
+  omittedEdgeCount: number = 0
 ): string {
   const nodeMap = new Map(evidence.nodes.map(n => [n.nodeId, n]));
 
@@ -37,11 +38,9 @@ export function serializeRegion(
   output += formatConfidenceSummary(referenceEdges, 'reference edge(s) in this neighborhood');
   output += '\nRelationships:\n';
 
-  // Dedupe first, then cap what actually gets printed — a well-connected symbol
-  // (a widely-used class, a common utility) can have hundreds of edges at depth 2+,
-  // and printing all of them unconditionally can blow past response size limits
-  // entirely (observed: 75K+ chars on a single query). Edges touching a root anchor
-  // directly are prioritized over deeper, less-relevant ones when truncating.
+  // Edges arrive already proactively capped and relevance-ranked by the executor
+  // (see executeRegion's edgeLimit) — so a hub query never materializes thousands of
+  // edges just to discard them here. This is a final display cap on top of that.
   const MAX_RELATIONSHIP_LINES = 60;
   const rootSet = new Set(roots);
   const printedEdges = new Set<string>();
@@ -71,8 +70,9 @@ export function serializeRegion(
       output += `  Callsite: ${edge.callsite.file}:${edge.callsite.line} -> "${edge.callsite.snippet}"\n`;
     }
   });
-  if (dedupedEdges.length > MAX_RELATIONSHIP_LINES) {
-    output += `... and ${dedupedEdges.length - MAX_RELATIONSHIP_LINES} more edge(s) omitted for size. Narrow with edgeKinds, direction, or a smaller depth to see them.\n`;
+  const totalOmitted = Math.max(0, dedupedEdges.length - shown.length) + omittedEdgeCount;
+  if (totalOmitted > 0) {
+    output += `... and ${totalOmitted} more edge(s) not shown (relevance-capped). Narrow with edgeKinds, direction, or a smaller depth to focus the result.\n`;
   }
   output += '\n';
 

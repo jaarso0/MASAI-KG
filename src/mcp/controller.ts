@@ -12,6 +12,7 @@ export interface RequestPolicy {
     maxDepth: number;
     maxNodes: number;
     maxPaths: number;
+    maxEdges: number;
   };
   context: {
     maxTokens: number;
@@ -24,7 +25,11 @@ export const DEFAULT_POLICY: RequestPolicy = {
   graph: {
     maxDepth: 6,
     maxNodes: 200,
-    maxPaths: 20
+    maxPaths: 20,
+    // Proactive ceiling on edges surfaced from a region traversal, enforced in the
+    // executor before materialization. Ranked by relevance, so a hub query keeps the
+    // edges worth showing and never pays to materialize thousands it would discard.
+    maxEdges: 120
   },
   context: {
     maxTokens: 12000
@@ -107,7 +112,8 @@ export class RequestController {
     const structuralResult = this.executor.execute(planWithResolved, {
       maxDepth: DEFAULT_POLICY.graph.maxDepth,
       maxNodes: DEFAULT_POLICY.graph.maxNodes,
-      maxPaths: DEFAULT_POLICY.graph.maxPaths
+      maxPaths: DEFAULT_POLICY.graph.maxPaths,
+      maxEdges: DEFAULT_POLICY.graph.maxEdges
     });
 
     // 3. Evidence Materialization Phase (Batch File Reader & Slicer)
