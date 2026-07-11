@@ -34,6 +34,13 @@ export class KnowledgeGraph {
   private allEdgesList: KGEdge[] = [];
   private unresolvedByFromSymbol = new Map<string, { rawName: string; kind: string }[]>();
 
+  // The semantic model's createdAt, carried onto the graph so a running server can report
+  // which build it is serving. Makes in-memory staleness (stale server vs fresh on-disk
+  // index) visible in every tool response instead of requiring a forensic investigation.
+  private builtAt: string | undefined;
+  public setBuiltAt(iso: string | undefined): void { this.builtAt = iso; }
+  public getBuiltAt(): string | undefined { return this.builtAt; }
+
   public addUnresolvedReference(fromSymbolId: string, rawName: string, kind: string): void {
     const list = this.unresolvedByFromSymbol.get(fromSymbolId) || [];
     list.push({ rawName, kind });
@@ -230,6 +237,7 @@ export class KnowledgeGraph {
 
 export function buildGraphFromModel(model: SemanticModel): KnowledgeGraph {
   const graph = new KnowledgeGraph();
+  graph.setBuiltAt(model.createdAt);
 
   // 1. Add all symbols as KGNodes
   // Include project symbol

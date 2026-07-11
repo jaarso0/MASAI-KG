@@ -168,6 +168,13 @@ export class MCPServer {
       // Execute the query plan through the request controller
       const result = await this.controller.processPlan(plan);
 
+      // Stamp the in-memory graph's build time onto every response, so a stale server
+      // (serving a graph built before the latest reindex) is obvious at a glance rather
+      // than requiring a forensic comparison against the on-disk model.
+      if (result && typeof result === 'object') {
+        result.graphBuiltAt = this.graph.getBuiltAt() ?? 'unknown';
+      }
+
       // Return the result formatted as MCP text content
       this.sendResult(id, {
         content: [
