@@ -105,6 +105,10 @@ export function buildGraph(model: SemanticModel): { nodes: RFNode[]; edges: RFEd
         strokeColor = '#f59e0b';
         isAnimated = true;
         break;
+      case 'renders':
+        strokeColor = '#ec4899';
+        isAnimated = true;
+        break;
       default:
         strokeColor = '#64748b';
         break;
