@@ -2,7 +2,13 @@ import { KnowledgeGraph, KGNode } from '../graph/graph.js';
 import { CandidateDiscovery } from '../retrieval/discovery.js';
 import { RetrievalIndexes } from '../retrieval/indexes.js';
 import { AnchorSpec } from '../mcp/types.js';
-import { ResolvedAnchor, AnchorCandidate, ResolutionResult, MultiAnchorResolutionResult } from './types.js';
+import { ResolvedAnchor, AnchorCandidate, ResolutionResult, MultiAnchorResolutionResult, Disambiguation } from './types.js';
+
+/** Test/scratch symbols are almost never the intended target of a bare query — deprioritize them. */
+function isPeripheralFile(filePath: string): boolean {
+  const p = filePath.replace(/\\/g, '/').toLowerCase();
+  return /(^|\/)(tests?|scratch)(\/|$)/.test(p) || /\.(test|spec)\.[a-z]+$/.test(p) || p.startsWith('scratch');
+}
 
 export class AnchorResolver {
   private graph: KnowledgeGraph;
@@ -55,7 +61,7 @@ export class AnchorResolver {
         console.error(`-> Ambiguous Qualified Name match: ${qnameMatches.length} candidates`);
         return {
           status: 'ambiguous',
-          candidates: qnameMatches.map(n => this.mapNodeToCandidate(n))
+          candidates: this.rankNodes(qnameMatches).slice(0, 10).map(n => this.mapNodeToCandidate(n))
         };
       }
     }
@@ -78,7 +84,7 @@ export class AnchorResolver {
         console.error(`-> Ambiguous Symbol Name match: ${nameMatches.length} candidates`);
         return {
           status: 'ambiguous',
-          candidates: nameMatches.map(n => this.mapNodeToCandidate(n))
+          candidates: this.rankNodes(nameMatches).slice(0, 10).map(n => this.mapNodeToCandidate(n))
         };
       }
     }
@@ -107,10 +113,43 @@ export class AnchorResolver {
           anchors: [this.mapNodeToResolved(node)]
         };
       } else if (candidates.length > 1) {
+        // Dominant-match auto-resolution. A fuzzy query ("MCPServer.handleToolCall",
+        // "resolveScope") shouldn't force the caller to re-query with an exact node ID
+        // when one candidate clearly wins. Resolve automatically when either:
+        //   (a) exactly one candidate's name (or the last dotted segment) or qualified name
+        //       equals the query case-insensitively, or
+        //   (b) the top-scoring candidate dominates the runner-up by a wide margin.
+        // Otherwise fall through to a genuinely ambiguous result (capped for output size).
+        const sorted = [...candidates].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+        const q = query.toLowerCase();
+        const tail = q.includes('.') ? q.split('.').pop()! : q;
+
+        const exactMatches = sorted.filter(
+          c => c.name.toLowerCase() === tail || c.qualifiedName.toLowerCase() === q
+        );
+        if (exactMatches.length === 1) {
+          console.error(`-> Dominant exact-name match among FTS candidates: ${exactMatches[0].nodeId}`);
+          const node = this.graph.getNode(exactMatches[0].nodeId)!;
+          return { status: 'resolved', anchors: [this.mapNodeToResolved(node)] };
+        }
+
+        const top = sorted[0];
+        const second = sorted[1];
+        if (
+          top.score !== undefined &&
+          second.score !== undefined &&
+          top.score > 0 &&
+          top.score >= second.score * 2
+        ) {
+          console.error(`-> Dominant top-score FTS match: ${top.nodeId} (${top.score} vs ${second.score})`);
+          const node = this.graph.getNode(top.nodeId)!;
+          return { status: 'resolved', anchors: [this.mapNodeToResolved(node)] };
+        }
+
         console.error(`-> Ambiguous FTS match: ${candidates.length} candidates`);
         return {
           status: 'ambiguous',
-          candidates
+          candidates: sorted.slice(0, 10)
         };
       }
     }
@@ -124,18 +163,40 @@ export class AnchorResolver {
 
   /**
    * Resolves multiple anchor specs.
-   * If any anchor resolves to ambiguous or not_found, returns a structured error.
+   *
+   * With `autoPick` (used by traversal tools — explore/trace/impact), an ambiguous query
+   * does NOT bail: the best-ranked candidate is chosen and the query proceeds, recording a
+   * Disambiguation so the caller can surface "picked X; also matched Y, Z". This eliminates
+   * the search_symbols → copy-nodeId → explore round-trip and lets loose / natural-language
+   * queries resolve directly. Without `autoPick` (used by search_symbols), ambiguity is
+   * returned as a candidate list for the caller to choose from.
    */
-  public resolveAll(specs: AnchorSpec[]): MultiAnchorResolutionResult {
+  public resolveAll(specs: AnchorSpec[], opts: { autoPick?: boolean } = {}): MultiAnchorResolutionResult {
     const resolvedAnchors: ResolvedAnchor[] = [];
     const ambiguousAnchors: Array<{ query: string; candidates: AnchorCandidate[] }> = [];
     const missingQueries: string[] = [];
+    const disambiguations: Disambiguation[] = [];
 
     for (const spec of specs) {
       const result = this.resolveAnchor(spec);
       if (result.status === 'resolved') {
         resolvedAnchors.push(...result.anchors);
       } else if (result.status === 'ambiguous') {
+        if (opts.autoPick && result.candidates.length > 0) {
+          const top = result.candidates[0];
+          const node = this.graph.getNode(top.nodeId);
+          if (node) {
+            const chosen = this.mapNodeToResolved(node);
+            resolvedAnchors.push(chosen);
+            disambiguations.push({
+              query: spec.query,
+              chosen,
+              alternatives: result.candidates.slice(1, 4)
+            });
+            console.error(`-> Auto-picked "${spec.query}" -> ${chosen.nodeId} (${result.candidates.length} candidates)`);
+            continue;
+          }
+        }
         ambiguousAnchors.push({
           query: spec.query,
           candidates: result.candidates
@@ -161,7 +222,8 @@ export class AnchorResolver {
 
     return {
       status: 'resolved',
-      anchors: resolvedAnchors
+      anchors: resolvedAnchors,
+      disambiguations: disambiguations.length > 0 ? disambiguations : undefined
     };
   }
 
@@ -181,5 +243,24 @@ export class AnchorResolver {
       qualifiedName: node.qualifiedName,
       file: node.filePath
     };
+  }
+
+  /**
+   * Orders candidate nodes best-first for auto-pick / capped ambiguous lists.
+   * Heuristic: prefer non-test/scratch files, then exported symbols, then the shorter
+   * (more direct) qualified name.
+   */
+  private rankNodes(nodes: KGNode[]): KGNode[] {
+    return [...nodes].sort((a, b) => {
+      const aPeripheral = isPeripheralFile(a.filePath) ? 1 : 0;
+      const bPeripheral = isPeripheralFile(b.filePath) ? 1 : 0;
+      if (aPeripheral !== bPeripheral) return aPeripheral - bPeripheral;
+
+      const aExported = a.properties?.exported ? 0 : 1;
+      const bExported = b.properties?.exported ? 0 : 1;
+      if (aExported !== bExported) return aExported - bExported;
+
+      return a.qualifiedName.length - b.qualifiedName.length;
+    });
   }
 }

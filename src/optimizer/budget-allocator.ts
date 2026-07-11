@@ -32,7 +32,7 @@ export function allocateBudget(
       if (lvl === 'OMIT') continue;
 
       totalChars += node.nodeId.length + node.name.length + node.kind.length + node.file.length;
-      
+
       if (lvl === 'SIGNATURE') {
         totalChars += (node.signature || '').length + (node.docs || '').length;
       } else if (lvl === 'SNIPPET') {
@@ -44,7 +44,13 @@ export function allocateBudget(
         totalChars += (node.signature || '').length + (node.docs || '').length + (node.source?.text || '').length;
       }
     }
-    return estimateTokens(JSON.stringify(nodes.map(n => ({ id: n.nodeId, role: n.structuralRole })))) + estimateTokens(String(totalChars));
+    // Structural overhead (the per-node id/role scaffolding) plus the actual body characters.
+    // NOTE: previously this did `estimateTokens(String(totalChars))`, which measured the number
+    // of *digits* in the char count (e.g. 100000 chars -> "100000" -> 2 tokens) rather than the
+    // content itself — so the budget was effectively infinite and no node ever got downgraded,
+    // letting a large neighborhood balloon to tens of thousands of tokens. Count the real chars.
+    const overheadChars = JSON.stringify(nodes.map(n => ({ id: n.nodeId, role: n.structuralRole }))).length;
+    return Math.ceil((totalChars + overheadChars) / 4);
   };
 
   let currentTokens = getEstimatedTotalTokens();

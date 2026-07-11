@@ -372,15 +372,26 @@ class CheckoutController {
   test('Request Controller integrates all phases and handles ambiguous anchor feedback', async () => {
     const controller = new RequestController(graph, TEMP_MCP_TEST_DIR);
 
-    // Ambiguous anchor query
+    // Ambiguous anchor query on a traversal tool: auto-picks the best match and proceeds
+    // (rather than bailing), prepending a transparency note listing what it chose.
     const resAmbiguous = await controller.processPlan({
       operation: 'region',
       anchors: [{ query: 'payment' }]
     });
 
-    expect(resAmbiguous.status).toBe('ambiguous');
-    expect(resAmbiguous.ambiguousAnchors.length).toBe(1);
-    expect(resAmbiguous.ambiguousAnchors[0].candidates.length).toBeGreaterThan(1);
+    expect(resAmbiguous.status).toBe('success');
+    expect(resAmbiguous.serializedContext).toContain('auto-resolved ambiguous anchor');
+
+    // Search mode still returns the raw candidate list for the caller to choose from.
+    const resSearch = await controller.processPlan({
+      operation: 'region',
+      anchors: [{ query: 'payment' }],
+      constraints: { searchMode: true, requestedDepth: 0 }
+    });
+
+    expect(resSearch.status).toBe('success');
+    expect(resSearch.operation).toBe('search');
+    expect(resSearch.candidates.length).toBeGreaterThan(1);
 
     // Successful region query
     const resSuccess = await controller.processPlan({

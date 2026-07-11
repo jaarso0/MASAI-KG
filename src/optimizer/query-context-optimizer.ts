@@ -17,8 +17,16 @@ export interface ContextPackage {
   omissions: {
     omittedNodes: number;
     truncatedNodes: number;
+    truncatedForSize?: boolean;
   };
 }
+
+// Absolute ceiling on serialized output, enforced after all budgeting. The per-node budget
+// allocator only bounds node *source* representation — it does not count the Anchors and
+// Relationships sections, which can themselves be large on a hub symbol. This is the final
+// hard guarantee that a single tool call never returns something that blows past a client's
+// token limit (~40K chars ≈ 10K tokens, comfortably under typical MCP response limits).
+const HARD_OUTPUT_CHAR_CAP = 40000;
 
 export class QueryContextOptimizer {
   private fileLinesLoader: (filePath: string) => Promise<string[] | null>;
@@ -101,7 +109,20 @@ export class QueryContextOptimizer {
       );
     }
 
-    // 4. Calculate final stats
+    // 4. Hard size backstop — clamp the fully-serialized output as a last resort, so a
+    // pathological hub query can never exceed the client's response limit regardless of
+    // how the per-node budgeter allocated. This should rarely fire now that the budgeter
+    // counts real body size, but it guarantees the tool degrades gracefully instead of failing.
+    let truncatedForSize = false;
+    if (serializedContext.length > HARD_OUTPUT_CHAR_CAP) {
+      serializedContext =
+        serializedContext.slice(0, HARD_OUTPUT_CHAR_CAP) +
+        `\n\n... [output truncated at ${HARD_OUTPUT_CHAR_CAP} characters to stay within response limits. ` +
+        `Narrow the query with a smaller depth, a single direction, or edgeKinds to see the rest.]`;
+      truncatedForSize = true;
+    }
+
+    // 5. Calculate final stats
     let omittedCount = 0;
     let truncatedCount = 0;
     for (const [_, lvl] of levels.entries()) {
@@ -120,7 +141,8 @@ export class QueryContextOptimizer {
       },
       omissions: {
         omittedNodes: omittedCount,
-        truncatedNodes: truncatedCount
+        truncatedNodes: truncatedCount,
+        truncatedForSize
       }
     };
   }

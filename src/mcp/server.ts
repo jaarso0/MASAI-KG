@@ -202,26 +202,26 @@ export class MCPServer {
       },
       {
         name: 'explore_region',
-        description: 'Explore the structural neighborhood (BFS) of a code anchor node.',
+        description: 'Explore the structural neighborhood (BFS) of a code anchor. The anchor accepts a plain symbol name, qualified name, substring, or loose/natural-language query — no exact node ID needed; the best match is auto-picked and noted, so you rarely need search_symbols first. Output self-caps to a token budget, so a broad depth/direction on a well-connected symbol degrades gracefully rather than failing.',
         inputSchema: {
           type: 'object',
           properties: {
-            anchor: { type: 'string', description: 'Query name or ID of the anchor node' },
-            direction: { type: 'string', enum: ['incoming', 'outgoing', 'both'], description: 'Traversal direction' },
+            anchor: { type: 'string', description: 'Symbol name, qualified name, substring, or loose query. Exact node IDs also work and skip auto-pick.' },
+            direction: { type: 'string', enum: ['incoming', 'outgoing', 'both'], description: 'Traversal direction (default: outgoing)' },
             depth: { type: 'number', description: 'Maximum search depth (default: 3)' },
-            edgeKinds: { type: 'array', items: { type: 'string' }, description: 'Edge kinds to filter by' }
+            edgeKinds: { type: 'array', items: { type: 'string' }, description: 'Optional edge-kind filter (e.g. ["call"]) to narrow a tangled neighborhood' }
           },
           required: ['anchor']
         }
       },
       {
         name: 'trace_path',
-        description: 'Find call paths or dependency paths between a source and a destination node.',
+        description: 'Find call/dependency paths between two symbols. Both endpoints accept a plain name, qualified name, or loose query — the best match for each is auto-picked, no exact IDs required.',
         inputSchema: {
           type: 'object',
           properties: {
-            from: { type: 'string', description: 'Source symbol query or ID' },
-            to: { type: 'string', description: 'Target symbol query or ID' },
+            from: { type: 'string', description: 'Source symbol — name, qualified name, or loose query' },
+            to: { type: 'string', description: 'Target symbol — name, qualified name, or loose query' },
             edgeKinds: { type: 'array', items: { type: 'string' }, description: 'Edge kinds to filter by' },
             maxDepth: { type: 'number', description: 'Maximum traversal depth' }
           },
@@ -230,11 +230,11 @@ export class MCPServer {
       },
       {
         name: 'analyze_impact',
-        description: 'Identify the bounded dependency cone affected by modifications to a symbol.',
+        description: 'Identify the bounded dependency cone affected by modifying a symbol ("what breaks if I change this"). The anchor accepts a plain name, qualified name, or loose query — the best match is auto-picked, no exact ID required.',
         inputSchema: {
           type: 'object',
           properties: {
-            anchor: { type: 'string', description: 'Symbol to analyze impact from' },
+            anchor: { type: 'string', description: 'Symbol to analyze impact from — name, qualified name, or loose query' },
             maxDepth: { type: 'number', description: 'Maximum depth of impact tracing' }
           },
           required: ['anchor']

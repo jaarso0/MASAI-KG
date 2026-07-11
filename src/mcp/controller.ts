@@ -65,7 +65,12 @@ export class RequestController {
     const startTime = Date.now();
 
     // 1. Anchor Resolution Phase
-    const resolution = this.resolver.resolveAll(plan.anchors);
+    // search_symbols wants the raw candidate list on ambiguity; traversal tools
+    // (explore/trace/impact) auto-pick the best match and proceed, so a loose or
+    // natural-language query resolves in a single call instead of forcing a
+    // search-then-copy-nodeId round-trip.
+    const isSearch = plan.operation === 'region' && plan.constraints?.searchMode === true;
+    const resolution = this.resolver.resolveAll(plan.anchors, { autoPick: !isSearch });
 
     if (resolution.status === 'not_found') {
       return {
@@ -76,7 +81,6 @@ export class RequestController {
     }
 
     if (resolution.status === 'ambiguous') {
-      const isSearch = plan.operation === 'region' && plan.constraints?.searchMode === true;
       if (isSearch) {
         const candidates = resolution.ambiguousAnchors.flatMap(a => a.candidates);
         return {
@@ -86,13 +90,15 @@ export class RequestController {
         };
       }
 
-      // Return candidates immediately to Host LLM without executing traversal
+      // Only reached when autoPick had candidates but none mapped to a live graph node.
       return {
         status: 'ambiguous',
         message: 'One or more anchor queries resolved to multiple candidates. Please refine your query.',
         ambiguousAnchors: resolution.ambiguousAnchors
       };
     }
+
+    const disambiguations = resolution.disambiguations;
 
     // 2. Traversal Phase (Safe Graph Executor)
     const resolvedAnchors = resolution.anchors.map(a => a.nodeId);
@@ -111,6 +117,20 @@ export class RequestController {
 
     // 4. Context Optimization & Serialization Phase
     const contextPackage = await this.optimizer.optimize(plan, structuralResult, evidence);
+
+    // Prepend a transparency note when a loose query was auto-resolved, so the caller
+    // knows which symbol it landed on and how to redirect if it guessed wrong.
+    if (disambiguations && disambiguations.length > 0) {
+      const noteLines = disambiguations.map(d => {
+        const alts = d.alternatives.length > 0
+          ? ` — also matched: ${d.alternatives.map(a => a.qualifiedName || a.nodeId).join(', ')}. Pass an exact ID to pick another.`
+          : '';
+        return `- "${d.query}" → ${d.chosen.qualifiedName} [${d.chosen.nodeId}]${alts}`;
+      });
+      contextPackage.serializedContext =
+        `Note: auto-resolved ambiguous anchor(s) to the best match:\n${noteLines.join('\n')}\n\n` +
+        contextPackage.serializedContext;
+    }
 
     const durationMs = Date.now() - startTime;
     console.error(`Request execution completed in ${durationMs}ms`);
