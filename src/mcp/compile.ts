@@ -3,8 +3,41 @@ import {
   SearchSymbolsArgs,
   ExploreRegionArgs,
   TracePathArgs,
-  AnalyzeImpactArgs
+  AnalyzeImpactArgs,
+  ExploreFlowArgs
 } from './types.js';
+
+// Words that are never symbol names — dropped when splitting a flow query into anchor terms.
+const FLOW_STOPWORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'for', 'with', 'how', 'does',
+  'is', 'are', 'flow', 'data', 'across', 'through', 'from', 'into', 'between', 'via'
+]);
+
+export function compileExploreFlow(args: ExploreFlowArgs): GraphQueryPlan {
+  const maxAnchors = args.maxAnchors ?? 8;
+  const terms = args.query
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(t => t.length > 1 && !FLOW_STOPWORDS.has(t.toLowerCase()))
+    .slice(0, maxAnchors);
+
+  return {
+    operation: 'region',
+    anchors: terms.map(t => ({ query: t, resolution: 'auto' as const })),
+    constraints: {
+      direction: 'both',
+      requestedDepth: args.depth ?? 1,
+      tolerateMissingAnchors: true,
+      synthesizeFlow: true
+    },
+    materialize: {
+      source: true,
+      callsites: true,
+      signatures: true,
+      docs: true
+    }
+  };
+}
 
 export function compileSearchSymbols(args: SearchSymbolsArgs): GraphQueryPlan {
   const expand = args.expand !== false;

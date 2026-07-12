@@ -171,7 +171,10 @@ export class AnchorResolver {
    * queries resolve directly. Without `autoPick` (used by search_symbols), ambiguity is
    * returned as a candidate list for the caller to choose from.
    */
-  public resolveAll(specs: AnchorSpec[], opts: { autoPick?: boolean } = {}): MultiAnchorResolutionResult {
+  public resolveAll(
+    specs: AnchorSpec[],
+    opts: { autoPick?: boolean; tolerateMissing?: boolean } = {}
+  ): MultiAnchorResolutionResult {
     const resolvedAnchors: ResolvedAnchor[] = [];
     const ambiguousAnchors: Array<{ query: string; candidates: AnchorCandidate[] }> = [];
     const missingQueries: string[] = [];
@@ -204,6 +207,20 @@ export class AnchorResolver {
       } else if (result.status === 'not_found') {
         missingQueries.push(result.query);
       }
+    }
+
+    // Multi-anchor flow mode: a bag of terms will include noise ("data", "flow") that
+    // resolves to nothing. Drop those and proceed with whatever anchors resolved, as long
+    // as at least one did.
+    if (opts.tolerateMissing) {
+      if (resolvedAnchors.length === 0) {
+        return { status: 'not_found', missingQueries };
+      }
+      return {
+        status: 'resolved',
+        anchors: resolvedAnchors,
+        disambiguations: disambiguations.length > 0 ? disambiguations : undefined
+      };
     }
 
     if (missingQueries.length > 0) {

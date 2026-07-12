@@ -26,6 +26,13 @@ export interface GraphQueryPlan {
      * for the single-match case without losing its distinct ambiguous-result shape.
      */
     searchMode?: boolean;
+    /**
+     * Multi-anchor "flow" mode (explore_flow): resolve a bag of terms to several anchors,
+     * traverse from all of them at once, and synthesize the connecting paths among them.
+     * Terms that don't resolve are dropped instead of failing the whole query.
+     */
+    tolerateMissingAnchors?: boolean;
+    synthesizeFlow?: boolean;
   };
   materialize?: {
     source?: boolean;
@@ -64,4 +71,12 @@ export interface TracePathArgs {
 export interface AnalyzeImpactArgs {
   anchor: string;
   maxDepth?: number;
+}
+
+export interface ExploreFlowArgs {
+  /** A bag of symbol/file names or a loose natural-language query. Each whitespace-separated
+   *  term is resolved to its best-matching anchor; unresolvable terms are ignored. */
+  query: string;
+  depth?: number;
+  maxAnchors?: number;
 }

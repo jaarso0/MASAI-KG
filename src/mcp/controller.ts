@@ -75,7 +75,8 @@ export class RequestController {
     // natural-language query resolves in a single call instead of forcing a
     // search-then-copy-nodeId round-trip.
     const isSearch = plan.operation === 'region' && plan.constraints?.searchMode === true;
-    const resolution = this.resolver.resolveAll(plan.anchors, { autoPick: !isSearch });
+    const tolerateMissing = plan.constraints?.tolerateMissingAnchors === true;
+    const resolution = this.resolver.resolveAll(plan.anchors, { autoPick: !isSearch, tolerateMissing });
 
     if (resolution.status === 'not_found') {
       return {
@@ -124,6 +125,16 @@ export class RequestController {
     // 4. Context Optimization & Serialization Phase
     const contextPackage = await this.optimizer.optimize(plan, structuralResult, evidence);
 
+    // Flow synthesis (explore_flow): given several resolved anchors, surface the call/render
+    // paths *connecting* them — "how do these symbols relate" — as a header, the way
+    // codegraph shows "call path among the symbols you queried". Uses the same path executor.
+    if (plan.constraints?.synthesizeFlow && resolution.anchors.length > 1) {
+      const flowText = this.synthesizeFlow(resolution.anchors.map(a => a.nodeId));
+      if (flowText) {
+        contextPackage.serializedContext = flowText + '\n\n' + contextPackage.serializedContext;
+      }
+    }
+
     // Prepend a transparency note when a loose query was auto-resolved, so the caller
     // knows which symbol it landed on and how to redirect if it guessed wrong.
     if (disambiguations && disambiguations.length > 0) {
@@ -145,5 +156,60 @@ export class RequestController {
       status: 'success',
       ...contextPackage
     };
+  }
+
+  /**
+   * Finds directed call/render/instantiate paths connecting the queried anchors and renders
+   * them as a compact "Flow" header. For each ordered pair it runs the path executor (both
+   * directions) and keeps the shortest connection found, so the caller sees how the symbols
+   * they named actually wire together — not just their individual neighborhoods.
+   */
+  private synthesizeFlow(anchorIds: string[]): string {
+    const flowEdgeKinds = ['call', 'instantiate', 'renders'];
+    const uniqueIds = [...new Set(anchorIds)];
+    const paths: string[][] = []; // each is a list of node ids
+
+    for (const from of uniqueIds) {
+      for (const to of uniqueIds) {
+        if (from === to) continue;
+        const result = this.executor.execute(
+          { operation: 'path', anchors: [], resolvedAnchors: [from, to], constraints: { edgeKinds: flowEdgeKinds } },
+          { maxDepth: 4, maxNodes: DEFAULT_POLICY.graph.maxNodes, maxPaths: 1, maxEdges: DEFAULT_POLICY.graph.maxEdges }
+        );
+        if (result.kind === 'path' && result.paths.length > 0 && result.paths[0].nodes.length > 1) {
+          paths.push(result.paths[0].nodes);
+        }
+      }
+    }
+
+    // Keep only maximal paths — drop any path that is a contiguous sub-sequence of a longer
+    // one (so "App → VisualizerDashboard" collapses into "App → VisualizerDashboard → buildGraph").
+    const isSubsequence = (short: string[], long: string[]): boolean => {
+      if (short.length >= long.length) return false;
+      for (let i = 0; i + short.length <= long.length; i++) {
+        if (short.every((id, k) => id === long[i + k])) return true;
+      }
+      return false;
+    };
+    const maximal = paths.filter(p => !paths.some(q => isSubsequence(p, q)));
+
+    // Dedup identical paths, then render.
+    const rendered = new Set<string>();
+    const lines: string[] = [];
+    for (const p of maximal) {
+      const key = p.join('>');
+      if (rendered.has(key)) continue;
+      rendered.add(key);
+      const hops = p.map(id => {
+        const n = this.graph.getNode(id);
+        return n ? (n.qualifiedName || n.name) : id.split('::').pop();
+      });
+      lines.push(`- ${hops.join(' → ')}`);
+    }
+
+    if (lines.length === 0) return '';
+    return `=== FLOW AMONG QUERIED SYMBOLS ===\n` +
+      `(call / instantiate / render paths connecting the symbols you named)\n` +
+      lines.join('\n');
   }
 }

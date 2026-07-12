@@ -9,7 +9,8 @@ import {
   compileSearchSymbols,
   compileExploreRegion,
   compileTracePath,
-  compileAnalyzeImpact
+  compileAnalyzeImpact,
+  compileExploreFlow
 } from '../src/mcp/compile.js';
 import { AnchorResolver } from '../src/resolution/anchor-resolver.js';
 import { GraphExecutor } from '../src/executor/graph-executor.js';
@@ -436,5 +437,23 @@ class CheckoutController {
     expect(resSuccess.status).toBe('success');
     expect(resSuccess.serializedContext).toContain('runCheckout');
     expect(resSuccess.tokenUsage.estimated).toBeGreaterThan(0);
+  });
+
+  test('explore_flow resolves multiple anchors, tolerates noise, and synthesizes the connecting flow', async () => {
+    const controller = new RequestController(graph, TEMP_MCP_TEST_DIR);
+
+    // Bag of terms: two real symbols + a noise word that resolves to nothing.
+    const plan = compileExploreFlow({ query: 'runCheckout charge data flow' });
+    expect(plan.anchors.length).toBe(2); // "data"/"flow" dropped as stopwords
+    expect(plan.constraints?.tolerateMissingAnchors).toBe(true);
+    expect(plan.constraints?.synthesizeFlow).toBe(true);
+
+    const res = await controller.processPlan(plan);
+    expect(res.status).toBe('success');
+    // The synthesized flow section shows the call path connecting the two named symbols.
+    expect(res.serializedContext).toContain('=== FLOW AMONG QUERIED SYMBOLS ===');
+    expect(res.serializedContext).toContain('runCheckout → PaymentProcessor.charge');
+    // Both anchors' neighborhoods are present in one call.
+    expect(res.serializedContext).toContain('charge');
   });
 });

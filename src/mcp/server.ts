@@ -6,7 +6,8 @@ import {
   compileSearchSymbols,
   compileExploreRegion,
   compileTracePath,
-  compileAnalyzeImpact
+  compileAnalyzeImpact,
+  compileExploreFlow
 } from './compile.js';
 import { RequestController } from './controller.js';
 
@@ -143,6 +144,14 @@ export class MCPServer {
           plan = compileAnalyzeImpact(args);
           break;
 
+        case 'explore_flow':
+          if (typeof args.query !== 'string') {
+            this.sendToolError(id, 'Missing or invalid parameter: query');
+            return;
+          }
+          plan = compileExploreFlow(args);
+          break;
+
         case 'query_graph':
           if (!args.plan) {
             this.sendToolError(id, 'Missing parameter: plan');
@@ -245,6 +254,19 @@ export class MCPServer {
             maxDepth: { type: 'number', description: 'Maximum depth of impact tracing' }
           },
           required: ['anchor']
+        }
+      },
+      {
+        name: 'explore_flow',
+        description: 'Multi-symbol exploration in ONE call. Give it a bag of symbol/file names or a loose question (e.g. "startServer buildGraph VisualizerDashboard data flow"); it resolves each term to its best match, traverses from all of them at once, synthesizes the call/render paths connecting them ("how do these relate"), and returns their source ranked to a budget. Use this instead of several explore_region calls when you want the relationship among multiple named symbols.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Bag of symbol/file names or a loose natural-language query; each term is resolved independently and unresolvable ones are ignored' },
+            depth: { type: 'number', description: 'Neighborhood depth around each anchor (default: 1)' },
+            maxAnchors: { type: 'number', description: 'Maximum number of terms to resolve as anchors (default: 8)' }
+          },
+          required: ['query']
         }
       },
       {
