@@ -258,7 +258,7 @@ export class MCPServer {
       },
       {
         name: 'explore_flow',
-        description: 'Multi-symbol exploration in ONE call. Give it a bag of symbol/file names or a loose question (e.g. "startServer buildGraph VisualizerDashboard data flow"); it resolves each term to its best match, traverses from all of them at once, synthesizes the call/render paths connecting them ("how do these relate"), and returns their source ranked to a budget. Use this instead of several explore_region calls when you want the relationship among multiple named symbols.',
+        description: 'PRIMARY entry point — start here for almost any "how does X work" / "where is Y" / "how do these relate" question. Takes ONE free-form query string mixing symbol names, file names, and plain English however you like (e.g. "parseProject walker.ts how does the file walk work"). It fuzzily resolves the meaningful terms (ignoring prose filler), traverses from all of them at once, synthesizes the call/render paths connecting them, and returns their source ranked to a budget — replacing a search_symbols→explore_region loop with a single call. Use the narrower tools (explore_region/trace_path/analyze_impact) only when you already have an exact symbol and want a specific directed view.',
         inputSchema: {
           type: 'object',
           properties: {

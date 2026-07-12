@@ -7,18 +7,38 @@ import {
   ExploreFlowArgs
 } from './types.js';
 
-// Words that are never symbol names — dropped when splitting a flow query into anchor terms.
+// Common English / prose words that are never the symbol you mean in a free-form query.
+// Not exhaustive — the identifier-shape heuristic below does most of the work; this just
+// catches plain lowercase words (which the shape rule can't distinguish from real symbols).
 const FLOW_STOPWORDS = new Set([
-  'the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'for', 'with', 'how', 'does',
-  'is', 'are', 'flow', 'data', 'across', 'through', 'from', 'into', 'between', 'via'
+  'the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'for', 'with', 'how', 'does', 'do',
+  'did', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'flow', 'data', 'across', 'through',
+  'from', 'into', 'onto', 'between', 'via', 'work', 'works', 'working', 'file', 'files', 'use',
+  'uses', 'used', 'using', 'get', 'gets', 'set', 'sets', 'make', 'makes', 'made', 'why', 'what',
+  'when', 'where', 'which', 'who', 'this', 'that', 'these', 'those', 'it', 'its', 'we', 'you',
+  'they', 'them', 'i', 'can', 'could', 'should', 'would', 'will', 'shall', 'may', 'might', 'must',
+  'way', 'ways', 'thing', 'things', 'code', 'about', 'over', 'under', 'out', 'up', 'down', 'off',
+  'then', 'else', 'so', 'than', 'as', 'at', 'by', 'but', 'if', 'not', 'all', 'any', 'each'
 ]);
+
+// A token is worth resolving as an anchor if it *looks like* a code identifier — camelCase /
+// PascalCase, a dotted filename (walker.ts), a path, or snake_case — OR it's a plain lowercase
+// word that isn't obvious English filler (so real lowercase symbols like `walk`, `charge`,
+// `refund` still pass, while `how`, `does`, `file`, `work` are dropped).
+function looksLikeAnchor(token: string): boolean {
+  if (token.length <= 1) return false;
+  const hasIdentifierShape = /[A-Z]/.test(token) || /[._/]/.test(token) || token.includes('_');
+  if (hasIdentifierShape) return true;               // buildGraph, walker.ts, src/parse, snake_case
+  if (!/^[a-z]+$/.test(token)) return false;         // odd tokens: skip
+  return !FLOW_STOPWORDS.has(token);                 // plain lowercase word, not filler
+}
 
 export function compileExploreFlow(args: ExploreFlowArgs): GraphQueryPlan {
   const maxAnchors = args.maxAnchors ?? 8;
   const terms = args.query
     .split(/\s+/)
-    .map(t => t.trim())
-    .filter(t => t.length > 1 && !FLOW_STOPWORDS.has(t.toLowerCase()))
+    .map(t => t.trim().replace(/[?!,;:()"']+$/g, '').replace(/^["'(]+/g, ''))
+    .filter(looksLikeAnchor)
     .slice(0, maxAnchors);
 
   return {
