@@ -14,6 +14,9 @@ export const JAVASCRIPT_QUERIES = `
 (variable_declarator
   name: (identifier) @name) @definition.variable
 
+(field_definition
+  property: (property_identifier) @name) @definition.variable
+
 (call_expression
   function: [
     (identifier)

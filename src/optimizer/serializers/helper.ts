@@ -22,9 +22,17 @@ export function formatResolutionConfidence(resolutionMethod?: string): string {
 
 export function formatUnresolvedRefs(node: MaterializedNode): string {
   if (!node.unresolvedRefs || node.unresolvedRefs.length === 0) return '';
-  const names = node.unresolvedRefs.slice(0, 5).map(r => r.rawName).join(', ');
-  const more = node.unresolvedRefs.length > 5 ? ` (+${node.unresolvedRefs.length - 5} more)` : '';
-  return `  ⚠ ${node.unresolvedRefs.length} unresolved reference(s) from here: ${names}${more}\n`;
+  // Reference rawNames can be whole multi-line method chains (e.g. a `fetch(...).then(...)`
+  // block); collapse whitespace and truncate so one sprawling call doesn't dump 20 lines.
+  const clean = (raw: string) => {
+    const oneLine = raw.replace(/\s+/g, ' ').trim();
+    return oneLine.length > 40 ? oneLine.slice(0, 40) + '…' : oneLine;
+  };
+  // De-dupe after cleaning (the chain often produces several near-identical prefixes).
+  const uniq = Array.from(new Set(node.unresolvedRefs.map(r => clean(r.rawName))));
+  const names = uniq.slice(0, 5).join(', ');
+  const more = uniq.length > 5 ? ` (+${uniq.length - 5} more)` : '';
+  return `  ⚠ ${uniq.length} unresolved reference(s) from here: ${names}${more}\n`;
 }
 
 /** `hasCoveringTests === false` means a test file was checked and none referenced this symbol. */

@@ -185,6 +185,23 @@ function getImportedName(nameNode: any): string {
 // Only handles the common, unambiguous cases (explicit `new X()`, TS type
 // annotations, and `x = ClassName()` in Python where the callee looks
 // like a class name) — anything murkier is left unresolved rather than guessed.
+// True if the node sits inside a function/arrow/method body (a real local), as opposed to
+// module top-level or a class body (a field). Stops at class/module boundaries so class
+// fields and top-level consts are NOT treated as locals.
+function isInsideFunctionBody(node: any): boolean {
+  const FN_TYPES = new Set([
+    'arrow_function', 'function', 'function_expression', 'function_declaration',
+    'generator_function', 'generator_function_declaration', 'method_definition'
+  ]);
+  let cur = node.parent;
+  while (cur) {
+    if (cur.type === 'class_body' || cur.type === 'program') return false;
+    if (FN_TYPES.has(cur.type)) return true;
+    cur = cur.parent;
+  }
+  return false;
+}
+
 function getDeclaredTypeChain(node: any, filePath: string): string[] | undefined {
   if (filePath.endsWith('.py')) {
     if (node.type !== 'assignment') return undefined;
@@ -198,7 +215,15 @@ function getDeclaredTypeChain(node: any, filePath: string): string[] | undefined
     return chain;
   }
 
-  if (node.type !== 'variable_declarator') return undefined;
+  // variable_declarator (const/let), plus class fields: public_field_definition (TS) and
+  // field_definition (JS). All expose 'type' (TS annotation) and/or 'value' (initializer).
+  if (
+    node.type !== 'variable_declarator' &&
+    node.type !== 'public_field_definition' &&
+    node.type !== 'field_definition'
+  ) {
+    return undefined;
+  }
 
   const typeAnnotation = node.childForFieldName('type');
   if (typeAnnotation) {
@@ -385,7 +410,11 @@ export function normalizeCaptures(
         const parentKind = tracker.currentParentSymbol?.kind;
         const isTopOrClassLevel =
           parentKind === undefined || parentKind === 'file' || parentKind === 'class' || parentKind === 'interface';
-        if (!isTopOrClassLevel) {
+        // A variable whose AST sits inside a function/arrow body is local even when that body
+        // isn't a tracked symbol (e.g. `it(() => { const x = ... })` callbacks) — otherwise it
+        // leaks in as a bogus file-level symbol and collides on id with same-named locals in
+        // sibling callbacks. Class fields (parent is class_body) are NOT caught by this.
+        if (!isTopOrClassLevel || isInsideFunctionBody(node)) {
           const owner = tracker.currentParentSymbol;
           const declaredTypeChain = getDeclaredTypeChain(node, filePath);
           if (owner && declaredTypeChain && declaredTypeChain.length > 0) {

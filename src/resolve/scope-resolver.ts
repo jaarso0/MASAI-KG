@@ -19,6 +19,22 @@ export class ScopeResolver {
     const { filePath, range, rawName, qualifierChain } = candidate;
     const nameToLookUp = qualifierChain[0] || rawName;
 
+    // `this.x` / `self.x`: resolve the receiver to the enclosing class of the referencing
+    // symbol, then resolve the rest of the chain through it (member method, or a field whose
+    // declared type carries the next hop). Without this, `this.graph.getNode(...)` and
+    // `self.foo()` never resolve and pollute the unresolved-reference list / undercount impact.
+    if ((qualifierChain[0] === 'this' || qualifierChain[0] === 'self') && qualifierChain.length > 1) {
+      const enclosingClass = this.findEnclosingClass(candidate.fromSymbolId);
+      if (enclosingClass) {
+        const member = this.resolveChain(enclosingClass, qualifierChain, 1);
+        if (member) {
+          return { symbol: member, method: 'scope' };
+        }
+      }
+      // Don't fall through to treating "this"/"self" as a global name — it never is.
+      return undefined;
+    }
+
     // Find all scopes in the file
     const fileSymbols = this.registry.byFile.lookup(filePath);
     const fileScopes: Scope[] = [];
@@ -242,6 +258,25 @@ export class ScopeResolver {
       return child;
     }
 
+    return undefined;
+  }
+
+  /** Walk containment parents up from a symbol to the class/interface/struct that encloses it. */
+  private findEnclosingClass(symbolId: string | undefined): Symbol | undefined {
+    let current = symbolId;
+    const seen = new Set<string>();
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      const parentEdge = this.containments.find(
+        c => c.childId === current && (c.kind === 'has_member' || c.kind === 'owns')
+      );
+      if (!parentEdge) break;
+      const parent = this.registry.byId.lookup(parentEdge.parentId);
+      if (parent && (parent.kind === 'class' || parent.kind === 'interface' || parent.kind === 'struct')) {
+        return parent;
+      }
+      current = parentEdge.parentId;
+    }
     return undefined;
   }
 

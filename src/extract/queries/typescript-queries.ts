@@ -20,6 +20,9 @@ export const TYPESCRIPT_QUERIES = `
 (variable_declarator
   name: (identifier) @name) @definition.variable
 
+(public_field_definition
+  name: (property_identifier) @name) @definition.variable
+
 (call_expression
   function: [
     (identifier)
