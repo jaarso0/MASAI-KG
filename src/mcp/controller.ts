@@ -13,6 +13,7 @@ export interface RequestPolicy {
     maxNodes: number;
     maxPaths: number;
     maxEdges: number;
+    maxNodesPerFile: number;
   };
   context: {
     maxTokens: number;
@@ -29,7 +30,11 @@ export const DEFAULT_POLICY: RequestPolicy = {
     // Proactive ceiling on edges surfaced from a region traversal, enforced in the
     // executor before materialization. Ranked by relevance, so a hub query keeps the
     // edges worth showing and never pays to materialize thousands it would discard.
-    maxEdges: 120
+    maxEdges: 120,
+    // Per-file diversity cap: no single file may contribute more than this many transitive
+    // (depth >= 2) nodes, so one sprawling file can't monopolize a broad query's budget.
+    // Anchors and direct neighbors are exempt, so focused single-symbol exploration is unaffected.
+    maxNodesPerFile: 30
   },
   context: {
     maxTokens: 12000
@@ -114,7 +119,8 @@ export class RequestController {
       maxDepth: DEFAULT_POLICY.graph.maxDepth,
       maxNodes: DEFAULT_POLICY.graph.maxNodes,
       maxPaths: DEFAULT_POLICY.graph.maxPaths,
-      maxEdges: DEFAULT_POLICY.graph.maxEdges
+      maxEdges: DEFAULT_POLICY.graph.maxEdges,
+      maxNodesPerFile: DEFAULT_POLICY.graph.maxNodesPerFile
     });
 
     // 3. Evidence Materialization Phase (Batch File Reader & Slicer)
@@ -128,8 +134,9 @@ export class RequestController {
     // Flow synthesis (explore_flow): given several resolved anchors, surface the call/render
     // paths *connecting* them — "how do these symbols relate" — as a header, the way
     // codegraph shows "call path among the symbols you queried". Uses the same path executor.
+    let flowText = '';
     if (plan.constraints?.synthesizeFlow && resolution.anchors.length > 1) {
-      const flowText = this.synthesizeFlow(resolution.anchors.map(a => a.nodeId));
+      flowText = this.synthesizeFlow(resolution.anchors.map(a => a.nodeId));
       if (flowText) {
         contextPackage.serializedContext = flowText + '\n\n' + contextPackage.serializedContext;
       }
@@ -147,6 +154,26 @@ export class RequestController {
       contextPackage.serializedContext =
         `Note: auto-resolved ambiguous anchor(s) to the best match:\n${noteLines.join('\n')}\n\n` +
         contextPackage.serializedContext;
+    }
+
+    // Low-confidence handoff, prepended LAST so it's the first thing the caller sees: if a
+    // free-form query anchored on few of its terms, or the anchors it did resolve don't
+    // connect, warn that the view may be incomplete — mirroring codegraph's confidence note.
+    if (plan.constraints?.synthesizeFlow) {
+      const requested = plan.anchors.length;
+      const resolved = resolution.anchors.length;
+      const weakCoverage = requested >= 2 && resolved / requested < 0.5;
+      const noConnections = resolved >= 2 && flowText === '';
+      const tooThin = requested >= 2 && resolved <= 1;
+      if (weakCoverage || noConnections || tooThin) {
+        const reasons: string[] = [];
+        if (tooThin || weakCoverage) reasons.push(`only ${resolved} of ${requested} query terms resolved to symbols`);
+        if (noConnections) reasons.push(`no call/render paths connect the resolved symbols`);
+        contextPackage.serializedContext =
+          `⚠ Low confidence: ${reasons.join('; ')}. This view may be incomplete — ` +
+          `try naming specific symbols by exact name (or use search_symbols to find them first).\n\n` +
+          contextPackage.serializedContext;
+      }
     }
 
     const durationMs = Date.now() - startTime;

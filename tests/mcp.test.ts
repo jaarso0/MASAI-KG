@@ -456,4 +456,12 @@ class CheckoutController {
     // Both anchors' neighborhoods are present in one call.
     expect(res.serializedContext).toContain('charge');
   });
+
+  test('explore_flow emits a low-confidence handoff when few query terms resolve', async () => {
+    const controller = new RequestController(graph, TEMP_MCP_TEST_DIR);
+    // Mostly nonsense terms; at most one resolves, so the caller should be warned.
+    const res = await controller.processPlan(compileExploreFlow({ query: 'charge zzznope quxbogus flarble' }));
+    expect(res.status).toBe('success');
+    expect(res.serializedContext.startsWith('⚠ Low confidence:')).toBe(true);
+  });
 });

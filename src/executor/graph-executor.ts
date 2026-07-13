@@ -19,6 +19,7 @@ export class GraphExecutor {
       maxNodes: number;
       maxPaths: number;
       maxEdges: number;
+      maxNodesPerFile?: number;
     }
   ): ExecutionResult {
     const operation = plan.operation;
@@ -39,7 +40,8 @@ export class GraphExecutor {
           edgeKinds: constraints.edgeKinds,
           depth,
           nodeLimit: nodes,
-          edgeLimit: limits.maxEdges
+          edgeLimit: limits.maxEdges,
+          perFileCap: limits.maxNodesPerFile
         });
 
       case 'path':

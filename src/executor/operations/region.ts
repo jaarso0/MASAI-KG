@@ -10,13 +10,19 @@ export function executeRegion(
     depth: number;
     nodeLimit: number;
     edgeLimit: number;
+    /** Max nodes from any single file admitted at depth >= 2, so one huge file can't
+     *  monopolize the budget on broad queries. 0/undefined = unlimited. Anchors and
+     *  direct (depth-1) neighbors are always kept, preserving focused exploration. */
+    perFileCap?: number;
   }
 ): RegionResult {
   const { anchors, direction, edgeKinds, depth, nodeLimit, edgeLimit } = options;
+  const perFileCap = options.perFileCap && options.perFileCap > 0 ? options.perFileCap : Infinity;
 
   const distance: Record<string, number> = {};
   const visitedNodes = new Set<string>();
   const visitedEdges = new Set<string>();
+  const fileNodeCounts = new Map<string, number>();
 
   const resultNodesMap = new Map<string, KGNode>();
   const resultEdges: KGEdge[] = [];
@@ -69,10 +75,18 @@ export function executeRegion(
         // Enforce hard node ceiling
         if (resultNodesMap.size >= nodeLimit) continue;
 
+        // Per-file diversity cap: only bites on transitive nodes (depth >= 2) so anchors and
+        // their direct neighbors are never dropped — a single sprawling file can't crowd out
+        // the rest of a broad query's results.
+        const nd = d + 1;
+        const fileCount = fileNodeCounts.get(neighborNode.filePath) || 0;
+        if (nd >= 2 && fileCount >= perFileCap) continue;
+
         visitedNodes.add(neighborId);
-        distance[neighborId] = d + 1;
+        distance[neighborId] = nd;
+        fileNodeCounts.set(neighborNode.filePath, fileCount + 1);
         resultNodesMap.set(neighborId, neighborNode);
-        queue.push({ id: neighborId, d: d + 1 });
+        queue.push({ id: neighborId, d: nd });
       }
 
       // Record the edge (provenance)
