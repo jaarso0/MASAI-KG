@@ -112,7 +112,9 @@ export class RequestController {
     const disambiguations = resolution.disambiguations;
 
     // 2. Traversal Phase (Safe Graph Executor)
-    const resolvedAnchors = resolution.anchors.map(a => a.nodeId);
+    // Dedup by node id — a multi-term query can resolve two terms to the same symbol
+    // (e.g. "startServer" and "serve.ts"), which would otherwise list it twice as an anchor.
+    const resolvedAnchors = [...new Set(resolution.anchors.map(a => a.nodeId))];
     const planWithResolved = { ...plan, resolvedAnchors };
 
     const structuralResult = this.executor.execute(planWithResolved, {
@@ -135,10 +137,19 @@ export class RequestController {
     // paths *connecting* them — "how do these symbols relate" — as a header, the way
     // codegraph shows "call path among the symbols you queried". Uses the same path executor.
     let flowText = '';
-    if (plan.constraints?.synthesizeFlow && resolution.anchors.length > 1) {
-      flowText = this.synthesizeFlow(resolution.anchors.map(a => a.nodeId));
-      if (flowText) {
-        contextPackage.serializedContext = flowText + '\n\n' + contextPackage.serializedContext;
+    if (plan.constraints?.synthesizeFlow) {
+      const anchorIds = resolution.anchors.map(a => a.nodeId);
+      // Blast radius first (prepended, so it ends up just above the source section).
+      const blastRadius = this.synthesizeBlastRadius(anchorIds);
+      if (blastRadius) {
+        contextPackage.serializedContext = blastRadius + '\n\n' + contextPackage.serializedContext;
+      }
+      // Then the flow, prepended last so it sits at the very top — the "how do these connect".
+      if (resolution.anchors.length > 1) {
+        flowText = this.synthesizeFlow(anchorIds);
+        if (flowText) {
+          contextPackage.serializedContext = flowText + '\n\n' + contextPackage.serializedContext;
+        }
       }
     }
 
@@ -194,7 +205,7 @@ export class RequestController {
   private synthesizeFlow(anchorIds: string[]): string {
     const flowEdgeKinds = ['call', 'instantiate', 'renders'];
     const uniqueIds = [...new Set(anchorIds)];
-    const paths: string[][] = []; // each is a list of node ids
+    const paths: Array<{ nodes: string[]; edges: any[] }> = [];
 
     for (const from of uniqueIds) {
       for (const to of uniqueIds) {
@@ -204,13 +215,12 @@ export class RequestController {
           { maxDepth: 4, maxNodes: DEFAULT_POLICY.graph.maxNodes, maxPaths: 1, maxEdges: DEFAULT_POLICY.graph.maxEdges }
         );
         if (result.kind === 'path' && result.paths.length > 0 && result.paths[0].nodes.length > 1) {
-          paths.push(result.paths[0].nodes);
+          paths.push(result.paths[0]);
         }
       }
     }
 
-    // Keep only maximal paths — drop any path that is a contiguous sub-sequence of a longer
-    // one (so "App → VisualizerDashboard" collapses into "App → VisualizerDashboard → buildGraph").
+    // Keep only maximal paths — drop any that is a contiguous sub-sequence of a longer one.
     const isSubsequence = (short: string[], long: string[]): boolean => {
       if (short.length >= long.length) return false;
       for (let i = 0; i + short.length <= long.length; i++) {
@@ -218,25 +228,83 @@ export class RequestController {
       }
       return false;
     };
-    const maximal = paths.filter(p => !paths.some(q => isSubsequence(p, q)));
+    const maximal = paths.filter(p => !paths.some(q => isSubsequence(p.nodes, q.nodes)));
 
-    // Dedup identical paths, then render.
+    // Render each maximal path as a numbered vertical chain with the edge verb between steps.
     const rendered = new Set<string>();
-    const lines: string[] = [];
+    const blocks: string[] = [];
     for (const p of maximal) {
-      const key = p.join('>');
+      const key = p.nodes.join('>');
       if (rendered.has(key)) continue;
       rendered.add(key);
-      const hops = p.map(id => {
-        const n = this.graph.getNode(id);
-        return n ? (n.qualifiedName || n.name) : id.split('::').pop();
+
+      let block = '';
+      p.nodes.forEach((id, i) => {
+        block += `  ${i + 1}. ${this.formatNodeRef(id)}\n`;
+        if (i < p.nodes.length - 1) {
+          const edge = p.edges[i];
+          block += `       ↓ ${this.edgeVerb(edge?.kind)}\n`;
+        }
       });
-      lines.push(`- ${hops.join(' → ')}`);
+      blocks.push(block.trimEnd());
+    }
+
+    if (blocks.length === 0) return '';
+    return `=== FLOW (call path among the queried symbols) ===\n${blocks.join('\n\n')}`;
+  }
+
+  /**
+   * "Blast radius" — for each queried symbol, how many things reference it (and from which
+   * files), plus whether any test exercises it. This is the "what breaks if I touch this"
+   * summary codegraph surfaces up front, computed from the graph's incoming reference edges.
+   */
+  private synthesizeBlastRadius(anchorIds: string[]): string {
+    const refKinds = new Set(['call', 'instantiate', 'renders', 'import', 'inherit', 'implement', 'type_use']);
+    const testableKinds = new Set(['function', 'method', 'class', 'interface']);
+    const lines: string[] = [];
+
+    for (const id of [...new Set(anchorIds)]) {
+      const node = this.graph.getNode(id);
+      if (!node) continue;
+
+      const incoming = this.graph.getEdgesTo(id).filter(e => refKinds.has(e.kind));
+      const callerFiles = [...new Set(
+        incoming.map(e => this.graph.getNode(e.sourceId)?.filePath).filter((f): f is string => !!f)
+      )];
+
+      const callerPart = incoming.length > 0
+        ? `${incoming.length} caller(s) across ${callerFiles.slice(0, 3).join(', ')}${callerFiles.length > 3 ? ` (+${callerFiles.length - 3} more)` : ''}`
+        : 'no callers found';
+      const testNote = (testableKinds.has(node.kind) && !this.graph.isTestCovered(id))
+        ? '; ⚠️ no covering tests found'
+        : '';
+
+      lines.push(`- ${this.formatNodeRef(id)} — ${callerPart}${testNote}`);
     }
 
     if (lines.length === 0) return '';
-    return `=== FLOW AMONG QUERIED SYMBOLS ===\n` +
-      `(call / instantiate / render paths connecting the symbols you named)\n` +
-      lines.join('\n');
+    return `=== BLAST RADIUS (what depends on the queried symbols) ===\n${lines.join('\n')}`;
+  }
+
+  /** "QualifiedName (path:line)" for a node id, matching the compact reference style. */
+  private formatNodeRef(id: string): string {
+    const n = this.graph.getNode(id);
+    if (!n) return id;
+    const range = n.properties?.range as { start?: { line: number } } | undefined;
+    const line = range?.start ? range.start.line + 1 : undefined;
+    const name = n.qualifiedName || n.name;
+    return line !== undefined ? `${name} (${n.filePath}:${line})` : `${name} (${n.filePath})`;
+  }
+
+  private edgeVerb(kind?: string): string {
+    switch (kind) {
+      case 'call': return 'calls';
+      case 'renders': return 'renders';
+      case 'instantiate': return 'instantiates';
+      case 'inherit': return 'extends';
+      case 'implement': return 'implements';
+      case 'import': return 'imports';
+      default: return kind || 'relates to';
+    }
   }
 }

@@ -450,11 +450,14 @@ class CheckoutController {
 
     const res = await controller.processPlan(plan);
     expect(res.status).toBe('success');
-    // The synthesized flow section shows the call path connecting the two named symbols.
-    expect(res.serializedContext).toContain('=== FLOW AMONG QUERIED SYMBOLS ===');
-    expect(res.serializedContext).toContain('runCheckout → PaymentProcessor.charge');
-    // Both anchors' neighborhoods are present in one call.
-    expect(res.serializedContext).toContain('charge');
+    // The synthesized flow section shows the call path connecting the two named symbols,
+    // rendered as a numbered vertical chain with the edge verb between steps.
+    expect(res.serializedContext).toContain('=== FLOW (call path among the queried symbols) ===');
+    expect(res.serializedContext).toContain('1. CheckoutController.runCheckout');
+    expect(res.serializedContext).toContain('↓ calls');
+    expect(res.serializedContext).toContain('2. PaymentProcessor.charge');
+    // Blast radius section lists what depends on each queried symbol.
+    expect(res.serializedContext).toContain('=== BLAST RADIUS (what depends on the queried symbols) ===');
   });
 
   test('explore_flow emits a low-confidence handoff when few query terms resolve', async () => {
