@@ -1,5 +1,5 @@
 import { KnowledgeGraph, KGNode } from '../graph/graph.js';
-import { CandidateDiscovery } from '../retrieval/discovery.js';
+import { CandidateDiscovery, DEFINITION_KINDS } from '../retrieval/discovery.js';
 import { RetrievalIndexes } from '../retrieval/indexes.js';
 import { AnchorSpec } from '../mcp/types.js';
 import { ResolvedAnchor, AnchorCandidate, ResolutionResult, MultiAnchorResolutionResult, Disambiguation } from './types.js';
@@ -74,19 +74,27 @@ export class AnchorResolver {
       let nameMatches = this.indexes.bySymbolName.get(lowerQuery) || [];
       if (kindFilter) nameMatches = nameMatches.filter(n => n.kind === kindFilter);
 
-      if (nameMatches.length === 1) {
-        console.error(`-> Single Symbol Name match: ${nameMatches[0].id}`);
+      // Prefer definitions. If the only exact-name hits are fields/variables, do NOT
+      // short-circuit here — fall through to FTS so a definition whose name *contains* the
+      // term can compete (e.g. "discovery" should reach `CandidateDiscovery`, not stop at a
+      // private field literally named `discovery`).
+      const defMatches = nameMatches.filter(n => DEFINITION_KINDS.has(n.kind));
+      const preferred = defMatches.length > 0 ? defMatches : [];
+
+      if (preferred.length === 1) {
+        console.error(`-> Single Symbol Name match: ${preferred[0].id}`);
         return {
           status: 'resolved',
-          anchors: [this.mapNodeToResolved(nameMatches[0])]
+          anchors: [this.mapNodeToResolved(preferred[0])]
         };
-      } else if (nameMatches.length > 1) {
-        console.error(`-> Ambiguous Symbol Name match: ${nameMatches.length} candidates`);
+      } else if (preferred.length > 1) {
+        console.error(`-> Ambiguous Symbol Name match: ${preferred.length} candidates`);
         return {
           status: 'ambiguous',
-          candidates: this.rankNodes(nameMatches).slice(0, 10).map(n => this.mapNodeToCandidate(n))
+          candidates: this.rankNodes(preferred).slice(0, 10).map(n => this.mapNodeToCandidate(n))
         };
       }
+      // nameMatches were all non-definition kinds — intentionally fall through to FTS.
     }
 
     // 4. Token FTS / Discovery Search (only if mode is 'search' or 'auto')
@@ -187,6 +195,27 @@ export class AnchorResolver {
       } else if (result.status === 'ambiguous') {
         if (opts.autoPick && result.candidates.length > 0) {
           const top = result.candidates[0];
+          const second = result.candidates[1];
+
+          // In bag-of-terms mode, a *fuzzy* match with no dominant winner is misresolution
+          // waiting to happen — a broad term like "retrieval" or "context" matches several
+          // unrelated symbols equally well, and pinning it to an arbitrary one is worse than
+          // not anchoring on it at all. Drop it; the low-confidence note reports the shortfall.
+          // (Exact-name ambiguity has no score and IS worth picking — all candidates are real
+          // exact matches, so the ranked best is a reasonable choice.)
+          // Threshold calibrated against real queries: "discovery" gives CandidateDiscovery
+          // (16.8) over the runner-up (11.8) = 1.42x — a clear winner worth taking; "context"
+          // gives three classes tied at 16.8 = 1.0x — genuinely ambiguous, worth dropping.
+          const DOMINANCE_RATIO = 1.25;
+          const isFuzzy = top.score !== undefined;
+          const dominant =
+            !isFuzzy || second?.score === undefined || top.score! >= second.score! * DOMINANCE_RATIO;
+          if (opts.tolerateMissing && isFuzzy && !dominant) {
+            console.error(`-> Dropping ambiguous fuzzy term "${spec.query}" (${result.candidates.length} comparable candidates)`);
+            missingQueries.push(spec.query);
+            continue;
+          }
+
           const node = this.graph.getNode(top.nodeId);
           if (node) {
             const chosen = this.mapNodeToResolved(node);

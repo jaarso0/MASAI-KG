@@ -9,6 +9,11 @@ interface Candidate {
   tokens: Set<string>; // distinct query tokens that matched this node
 }
 
+/** Kinds that represent a real definition — what a code-navigation query almost always means. */
+export const DEFINITION_KINDS = new Set([
+  'class', 'interface', 'struct', 'function', 'method', 'type_alias', 'enum'
+]);
+
 export class CandidateDiscovery {
   private indexes: RetrievalIndexes;
   // Common English + generic programming words that are noise as query terms — filtered out
@@ -110,6 +115,12 @@ export class CandidateDiscovery {
       // Co-location boost: node's file is where multiple query terms landed.
       const coFile = fileTokenUnion.get(c.node.filePath)?.size ?? 0;
       if (coFile >= 2) score += (coFile - 1) * 8;
+
+      // Kind preference: when navigating code you almost always mean the definition, not a
+      // field that happens to share the name. Without this, a private field literally named
+      // `discovery` outranks the `CandidateDiscovery` class for the query "discovery".
+      if (DEFINITION_KINDS.has(c.node.kind)) score *= 1.4;
+      else if (c.node.kind === 'variable') score *= 0.5;
 
       // Brevity bonus: core components have concise names; test/helper classes are verbose.
       if (c.node.kind !== 'file' && c.node.name.length <= 12) score += 2;
